@@ -274,7 +274,7 @@ class _Header extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Paste text or open a TXT, PDF, DOCX, JPG, or PNG file, then turn long content into a clear summary of the main ideas.',
+            'Paste English or Vietnamese text, or open a TXT, PDF, DOCX, JPG, or PNG file, then turn long content into a clear summary of the main ideas.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: Colors.white.withValues(alpha: 0.86),
               height: 1.4,
@@ -372,7 +372,7 @@ class _InputSection extends StatelessWidget {
                 alignLabelWithHint: true,
                 border: OutlineInputBorder(),
                 labelText: 'Dán nội dung hoặc chọn file TXT/PDF/DOCX/ảnh',
-                hintText: 'Dán nội dung hoặc mở file TXT, PDF, DOCX, JPG, PNG...',
+                hintText: 'Dán nội dung tiếng Việt/English hoặc mở file TXT, PDF, DOCX, JPG, PNG...',
               ),
               onChanged: (_) => onTextChanged(),
             ),

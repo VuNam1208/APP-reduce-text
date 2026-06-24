@@ -21,4 +21,22 @@ Kết luận là bản thử nghiệm này tạo được nền tảng cho app t
     expect(result.keywords, isNotEmpty);
     expect(result.summaryWordCount, lessThanOrEqualTo(result.originalWordCount));
   });
+
+  test('summarize supports English and Vietnamese input', () {
+    const text = '''
+The goal of this app is to summarize long documents for mobile users.
+Users can paste English content or upload supported files from their phone.
+Mục tiêu của ứng dụng là giúp người dùng tóm tắt văn bản tiếng Việt một cách nhanh chóng.
+Phương pháp tóm tắt ưu tiên các câu chứa nhiều từ khóa quan trọng.
+The result should keep the main ideas while reducing reading time.
+Kết quả cuối cùng là một bản tóm tắt ngắn gọn, dễ đọc và có thể tải về file.
+''';
+
+    const summarizer = TextSummarizer();
+    final result = summarizer.summarize(text, targetRatio: 0.4);
+
+    expect(result.summary, isNotEmpty);
+    expect(result.originalWordCount, greaterThan(20));
+    expect(result.keywords, isNotEmpty);
+  });
 }
