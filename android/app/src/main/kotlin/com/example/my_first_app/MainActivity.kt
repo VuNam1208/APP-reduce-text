@@ -27,8 +27,10 @@ class MainActivity : FlutterActivity() {
     private val channelName = "document_summary/file_reader"
     private val pickTextFileRequestCode = 4201
     private val saveTextFileRequestCode = 4202
+    private val saveBinaryFileRequestCode = 4203
     private var pendingResult: MethodChannel.Result? = null
     private var pendingSaveContent: String? = null
+    private var pendingSaveBytes: ByteArray? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -46,6 +48,21 @@ class MainActivity : FlutterActivity() {
                         content = arguments?.get("content") as? String ?: "",
                         result = result,
                     )
+                }
+                "saveBinaryFile" -> {
+                    val arguments = call.arguments as? Map<*, *>
+                    val bytes = arguments?.get("bytes") as? ByteArray
+
+                    if (bytes == null) {
+                        result.error("invalid_arguments", "No file data was provided.", null)
+                    } else {
+                        saveBinaryFile(
+                            fileName = arguments["fileName"] as? String ?: "summary.pdf",
+                            bytes = bytes,
+                            mimeType = arguments["mimeType"] as? String ?: "application/octet-stream",
+                            result = result,
+                        )
+                    }
                 }
                 "ocrScannedPdf" -> {
                     val arguments = call.arguments as? Map<*, *>
@@ -131,6 +148,32 @@ class MainActivity : FlutterActivity() {
         )
     }
 
+    private fun saveBinaryFile(
+        fileName: String,
+        bytes: ByteArray,
+        mimeType: String,
+        result: MethodChannel.Result,
+    ) {
+        if (pendingResult != null) {
+            result.error("busy", "A file picker is already open.", null)
+            return
+        }
+
+        pendingResult = result
+        pendingSaveBytes = bytes
+
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = mimeType
+            putExtra(Intent.EXTRA_TITLE, ensureFileName(fileName, extensionForMimeType(mimeType)))
+        }
+
+        startActivityForResult(
+            Intent.createChooser(intent, "Save summary file"),
+            saveBinaryFileRequestCode,
+        )
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
 
@@ -158,6 +201,19 @@ class MainActivity : FlutterActivity() {
                 }
 
                 writeTextFile(data.data!!, content, result)
+            }
+            saveBinaryFileRequestCode -> {
+                val result = pendingResult ?: return
+                val bytes = pendingSaveBytes ?: ByteArray(0)
+                pendingResult = null
+                pendingSaveBytes = null
+
+                if (resultCode != Activity.RESULT_OK || data?.data == null) {
+                    result.success(false)
+                    return
+                }
+
+                writeBinaryFile(data.data!!, bytes, result)
             }
         }
     }
@@ -213,13 +269,47 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun ensureTextFileName(fileName: String): String {
-        val trimmedName = fileName.trim().ifEmpty { "summary.txt" }
+    private fun writeBinaryFile(uri: Uri, bytes: ByteArray, result: MethodChannel.Result) {
+        try {
+            contentResolver.openOutputStream(uri)?.use { output ->
+                output.write(bytes)
+                output.flush()
+            } ?: run {
+                result.error("write_failed", "Could not open the selected file.", null)
+                return
+            }
 
-        return if (trimmedName.endsWith(".txt", ignoreCase = true)) {
+            result.success(true)
+        } catch (error: Exception) {
+            result.error(
+                "write_failed",
+                error.localizedMessage ?: "Could not save the summary file.",
+                null,
+            )
+        }
+    }
+
+    private fun ensureTextFileName(fileName: String): String {
+        return ensureFileName(fileName, "txt")
+    }
+
+    private fun ensureFileName(fileName: String, extension: String): String {
+        val fallbackName = "summary.$extension"
+        val trimmedName = fileName.trim().ifEmpty { fallbackName }
+        val suffix = ".$extension"
+
+        return if (trimmedName.endsWith(suffix, ignoreCase = true)) {
             trimmedName
         } else {
-            "$trimmedName.txt"
+            "$trimmedName$suffix"
+        }
+    }
+
+    private fun extensionForMimeType(mimeType: String): String {
+        return when (mimeType) {
+            "application/pdf" -> "pdf"
+            "text/plain" -> "txt"
+            else -> "bin"
         }
     }
 

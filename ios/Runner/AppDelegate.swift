@@ -50,6 +50,30 @@ import Vision
         return
       }
 
+      if call.method == "saveBinaryFile" {
+        guard
+          let arguments = call.arguments as? [String: Any],
+          let bytes = arguments["bytes"] as? FlutterStandardTypedData
+        else {
+          result(
+            FlutterError(
+              code: "invalid_arguments",
+              message: "No file data was provided.",
+              details: nil
+            )
+          )
+          return
+        }
+
+        self?.saveBinaryFile(
+          fileName: arguments["fileName"] as? String ?? "summary.pdf",
+          data: bytes.data,
+          mimeType: arguments["mimeType"] as? String ?? "application/octet-stream",
+          result: result
+        )
+        return
+      }
+
       if call.method == "ocrScannedPdf" {
         guard
           let arguments = call.arguments as? [String: Any],
@@ -272,6 +296,97 @@ import Vision
     return recognizedLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
+  private func saveBinaryFile(
+    fileName: String,
+    data: Data,
+    mimeType: String,
+    result: @escaping FlutterResult
+  ) {
+    guard pendingShareResult == nil else {
+      result(
+        FlutterError(
+          code: "busy",
+          message: "A save sheet is already open.",
+          details: nil
+        )
+      )
+      return
+    }
+
+    guard let presenter = topViewController() else {
+      result(
+        FlutterError(
+          code: "no_presenter",
+          message: "Could not open the save sheet.",
+          details: nil
+        )
+      )
+      return
+    }
+
+    do {
+      let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent(ensureFileName(fileName, extensionForMimeType(mimeType)))
+      try data.write(to: url, options: .atomic)
+
+      presentShareSheet(url: url, presenter: presenter, result: result)
+    } catch {
+      result(
+        FlutterError(
+          code: "write_failed",
+          message: error.localizedDescription,
+          details: nil
+        )
+      )
+    }
+  }
+
+  private func presentShareSheet(
+    url: URL,
+    presenter: UIViewController,
+    result: @escaping FlutterResult
+  ) {
+    pendingShareResult = result
+
+    let activityController = UIActivityViewController(
+      activityItems: [url],
+      applicationActivities: nil
+    )
+    activityController.completionWithItemsHandler = { [weak self] _, completed, _, error in
+      guard let shareResult = self?.pendingShareResult else {
+        return
+      }
+
+      self?.pendingShareResult = nil
+
+      if let error = error {
+        shareResult(
+          FlutterError(
+            code: "write_failed",
+            message: error.localizedDescription,
+            details: nil
+          )
+        )
+        return
+      }
+
+      shareResult(completed)
+    }
+
+    if let popover = activityController.popoverPresentationController {
+      popover.sourceView = presenter.view
+      popover.sourceRect = CGRect(
+        x: presenter.view.bounds.midX,
+        y: presenter.view.bounds.midY,
+        width: 0,
+        height: 0
+      )
+      popover.permittedArrowDirections = []
+    }
+
+    presenter.present(activityController, animated: true)
+  }
+
   private func saveTextFile(
     fileName: String,
     content: String,
@@ -304,45 +419,7 @@ import Vision
         .appendingPathComponent(ensureTextFileName(fileName))
       try content.write(to: url, atomically: true, encoding: .utf8)
 
-      pendingShareResult = result
-
-      let activityController = UIActivityViewController(
-        activityItems: [url],
-        applicationActivities: nil
-      )
-      activityController.completionWithItemsHandler = { [weak self] _, completed, _, error in
-        guard let shareResult = self?.pendingShareResult else {
-          return
-        }
-
-        self?.pendingShareResult = nil
-
-        if let error = error {
-          shareResult(
-            FlutterError(
-              code: "write_failed",
-              message: error.localizedDescription,
-              details: nil
-            )
-          )
-          return
-        }
-
-        shareResult(completed)
-      }
-
-      if let popover = activityController.popoverPresentationController {
-        popover.sourceView = presenter.view
-        popover.sourceRect = CGRect(
-          x: presenter.view.bounds.midX,
-          y: presenter.view.bounds.midY,
-          width: 0,
-          height: 0
-        )
-        popover.permittedArrowDirections = []
-      }
-
-      presenter.present(activityController, animated: true)
+      presentShareSheet(url: url, presenter: presenter, result: result)
     } catch {
       result(
         FlutterError(
@@ -428,13 +505,29 @@ import Vision
   }
 
   private func ensureTextFileName(_ fileName: String) -> String {
-    let trimmedName = fileName.trimmingCharacters(in: .whitespacesAndNewlines)
-    let fallbackName = trimmedName.isEmpty ? "summary.txt" : trimmedName
+    ensureFileName(fileName, "txt")
+  }
 
-    if fallbackName.lowercased().hasSuffix(".txt") {
+  private func ensureFileName(_ fileName: String, _ fileExtension: String) -> String {
+    let trimmedName = fileName.trimmingCharacters(in: .whitespacesAndNewlines)
+    let fallbackName = trimmedName.isEmpty ? "summary.\(fileExtension)" : trimmedName
+    let suffix = ".\(fileExtension)"
+
+    if fallbackName.lowercased().hasSuffix(suffix) {
       return fallbackName
     }
 
-    return "\(fallbackName).txt"
+    return "\(fallbackName)\(suffix)"
+  }
+
+  private func extensionForMimeType(_ mimeType: String) -> String {
+    switch mimeType {
+    case "application/pdf":
+      return "pdf"
+    case "text/plain":
+      return "txt"
+    default:
+      return "bin"
+    }
   }
 }

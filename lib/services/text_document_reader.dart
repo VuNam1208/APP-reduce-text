@@ -30,7 +30,9 @@ class TextDocumentReader {
   static const MethodChannel _channel =
       MethodChannel('document_summary/file_reader');
 
-  Future<PickedTextDocument?> pickTextDocument() async {
+  Future<PickedTextDocument?> pickTextDocument({
+    bool enableOcr = true,
+  }) async {
     try {
       final response =
           await _channel.invokeMapMethod<String, dynamic>('pickTextFile');
@@ -41,7 +43,10 @@ class TextDocumentReader {
 
       return PickedTextDocument(
         name: response['name'] as String? ?? 'Tai lieu',
-        content: await _extractDocumentText(response),
+        content: await _extractDocumentText(
+          response,
+          enableOcr: enableOcr,
+        ),
       );
     } on MissingPluginException {
       throw const DocumentReaderException(
@@ -80,7 +85,37 @@ class TextDocumentReader {
     }
   }
 
-  Future<String> _extractDocumentText(Map<String, dynamic> response) async {
+  Future<bool> saveBinaryDocument({
+    required String fileName,
+    required Uint8List bytes,
+    required String mimeType,
+  }) async {
+    try {
+      final saved = await _channel.invokeMethod<bool>(
+        'saveBinaryFile',
+        {
+          'fileName': fileName,
+          'bytes': bytes,
+          'mimeType': mimeType,
+        },
+      );
+
+      return saved ?? false;
+    } on MissingPluginException {
+      throw const DocumentReaderException(
+        'File download is only available on Android and iOS.',
+      );
+    } on PlatformException catch (error) {
+      throw DocumentReaderException(
+        error.message ?? 'Could not save the summary file.',
+      );
+    }
+  }
+
+  Future<String> _extractDocumentText(
+    Map<String, dynamic> response, {
+    required bool enableOcr,
+  }) async {
     final name = response['name'] as String? ?? '';
     final extension = _extensionOf(name);
     final bytes = _bytesFrom(response['bytes']);
@@ -90,7 +125,7 @@ class TextDocumentReader {
         throw const DocumentReaderException('PDF file data is missing.');
       }
 
-      return _extractPdfText(bytes);
+      return _extractPdfText(bytes, enableOcr: enableOcr);
     }
 
     if (extension == 'docx') {
@@ -104,6 +139,12 @@ class TextDocumentReader {
     if (_isImageExtension(extension)) {
       if (bytes == null) {
         throw const DocumentReaderException('Image file data is missing.');
+      }
+
+      if (!enableOcr) {
+        throw const DocumentReaderException(
+          'OCR is turned off. Enable OCR in Settings to read image files.',
+        );
       }
 
       return _extractImageText(bytes);
@@ -121,7 +162,10 @@ class TextDocumentReader {
     return '';
   }
 
-  Future<String> _extractPdfText(Uint8List bytes) async {
+  Future<String> _extractPdfText(
+    Uint8List bytes, {
+    required bool enableOcr,
+  }) async {
     final document = PdfDocument(inputBytes: bytes);
 
     try {
@@ -132,6 +176,12 @@ class TextDocumentReader {
       }
     } finally {
       document.dispose();
+    }
+
+    if (!enableOcr) {
+      throw const DocumentReaderException(
+        'This PDF appears to be scanned. Enable OCR in Settings to read it.',
+      );
     }
 
     return _extractScannedPdfText(bytes);

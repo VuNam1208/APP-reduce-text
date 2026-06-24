@@ -28,5 +28,45 @@ This solution is suitable for a prototype on Android and iOS phones.
     expect(find.text('Summary'), findsOneWidget);
     expect(find.text('Copy'), findsOneWidget);
     expect(find.text('Download .txt'), findsOneWidget);
+    expect(find.text('Download PDF'), findsOneWidget);
+  });
+
+  testWidgets('settings panel changes export actions',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const MyApp());
+
+    await tester.tap(find.byKey(const Key('settingsToggleButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Language'), findsOneWidget);
+    expect(find.text('OCR'), findsOneWidget);
+    expect(find.text('Export'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('languageDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Vietnamese').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Vietnamese'), findsWidgets);
+
+    await tester.tap(find.text('PDF'));
+    await tester.pumpAndSettle();
+
+    const sourceText = '''
+The system summarizes long documents into concise notes.
+The input can come from pasted text or imported files.
+Users can save the output for later reading.
+The export setting controls which download action appears.
+The interface should behave like a real product setting.
+''';
+
+    await tester.enterText(find.byKey(const Key('sourceInput')), sourceText);
+    await tester.ensureVisible(find.byKey(const Key('summarizeButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('summarizeButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Download PDF'), findsOneWidget);
+    expect(find.text('Download .txt'), findsNothing);
   });
 }
