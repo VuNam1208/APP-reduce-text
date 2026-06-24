@@ -11,12 +11,12 @@ void main() {
     expect(find.text('Text Summarizer'), findsWidgets);
 
     const sourceText = '''
-Mục tiêu của hệ thống là giúp người dùng đọc nhanh các tài liệu dài.
-Ứng dụng nhận nội dung văn bản từ file hoặc từ vùng nhập liệu trên màn hình.
-Phương pháp tóm tắt ưu tiên các câu chứa nhiều từ khóa quan trọng và giữ lại trật tự ban đầu.
-Kết quả là một bản tóm tắt ngắn hơn, dễ sao chép và đủ để nắm ý chính.
-Người dùng có thể điều chỉnh độ dài tóm tắt theo nhu cầu thực tế.
-Giải pháp này phù hợp cho bản thử nghiệm trên điện thoại Android và iOS.
+The goal of the system is to help users read long documents quickly.
+The app accepts content from files or from the text input area on screen.
+The summarization method prioritizes sentences with important keywords and keeps the original order.
+The result is a shorter summary that is easy to copy and still captures the main ideas.
+Users can adjust the summary length to match practical reading needs.
+This solution is suitable for a prototype on Android and iOS phones.
 ''';
 
     await tester.enterText(find.byKey(const Key('sourceInput')), sourceText);
@@ -25,8 +25,8 @@ Giải pháp này phù hợp cho bản thử nghiệm trên điện thoại Andr
     await tester.tap(find.byKey(const Key('summarizeButton')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Bản tóm tắt'), findsOneWidget);
-    expect(find.text('Sao chép'), findsOneWidget);
+    expect(find.text('Summary'), findsOneWidget);
+    expect(find.text('Copy'), findsOneWidget);
     expect(find.text('Download .txt'), findsOneWidget);
   });
 }

@@ -47,7 +47,7 @@ class _SummarizerPageState extends State<SummarizerPage> {
       });
 
       if (document.content.trim().isEmpty) {
-        _showMessage('File nay khong co noi dung van ban de tom tat.');
+        _showMessage('This file does not contain readable text to summarize.');
       } else {
         _summarize();
       }
@@ -68,7 +68,7 @@ class _SummarizerPageState extends State<SummarizerPage> {
     final input = _inputController.text.trim();
 
     if (input.isEmpty) {
-      _showMessage('Hay nhap hoac chon file van ban truoc.');
+      _showMessage('Enter text or choose a file first.');
       return;
     }
 
@@ -96,7 +96,7 @@ class _SummarizerPageState extends State<SummarizerPage> {
     }
 
     await Clipboard.setData(ClipboardData(text: summary));
-    _showMessage('Da sao chep ban tom tat.');
+    _showMessage('Summary copied.');
   }
 
   Future<void> _downloadSummary() async {
@@ -288,11 +288,11 @@ class _Header extends StatelessWidget {
               children: [
                 _InfoChip(
                   icon: Icons.description_outlined,
-                  label: 'Gốc: ${_formatPages(inputPages)} trang',
+                  label: 'Original: ${_formatPages(inputPages)} pages',
                 ),
                 _InfoChip(
                   icon: Icons.compress,
-                  label: 'Tóm tắt: ${_formatPages(summaryPages)} trang',
+                  label: 'Summary: ${_formatPages(summaryPages)} pages',
                 ),
               ],
             ),
@@ -350,7 +350,7 @@ class _InputSection extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    documentName ?? 'Nguồn dữ liệu',
+                    documentName ?? 'Input source',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -358,7 +358,7 @@ class _InputSection extends StatelessWidget {
                         ),
                   ),
                 ),
-                Text('$wordCount từ'),
+                Text('$wordCount words'),
               ],
             ),
             const SizedBox(height: 12),
@@ -371,8 +371,8 @@ class _InputSection extends StatelessWidget {
               decoration: const InputDecoration(
                 alignLabelWithHint: true,
                 border: OutlineInputBorder(),
-                labelText: 'Dán nội dung hoặc chọn file TXT/PDF/DOCX/ảnh',
-                hintText: 'Dán nội dung tiếng Việt/English hoặc mở file TXT, PDF, DOCX, JPG, PNG...',
+                labelText: 'Paste text or choose a TXT/PDF/DOCX/image file',
+                hintText: 'Paste English/Vietnamese text or open TXT, PDF, DOCX, JPG, PNG...',
               ),
               onChanged: (_) => onTextChanged(),
             ),
@@ -390,12 +390,12 @@ class _InputSection extends StatelessWidget {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.upload_file),
-                  label: Text(isPickingFile ? 'Đang mở file' : 'Chọn file'),
+                  label: Text(isPickingFile ? 'Opening file' : 'Choose file'),
                 ),
                 OutlinedButton.icon(
                   onPressed: controller.text.isEmpty ? null : onClear,
                   icon: const Icon(Icons.clear),
-                  label: const Text('Xóa nội dung'),
+                  label: const Text('Clear text'),
                 ),
               ],
             ),
@@ -437,7 +437,7 @@ class _SummaryControls extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Độ dài tóm tắt',
+                    'Summary length',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
@@ -456,8 +456,8 @@ class _SummaryControls extends StatelessWidget {
             ),
             Text(
               targetWordCount > 0
-                  ? 'Mục tiêu khoảng $targetWordCount từ.'
-                  : 'Nhập nội dung để xem độ dài mục tiêu.',
+                  ? 'Target length: about $targetWordCount words.'
+                  : 'Enter text to see the target length.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 12),
@@ -465,7 +465,7 @@ class _SummaryControls extends StatelessWidget {
               key: const Key('summarizeButton'),
               onPressed: onSummarize,
               icon: const Icon(Icons.auto_awesome),
-              label: const Text('Tóm tắt'),
+              label: const Text('Summarize'),
             ),
           ],
         ),
@@ -513,7 +513,7 @@ class _SummaryOutput extends StatelessWidget {
                           const Icon(Icons.summarize_outlined),
                           const SizedBox(width: 8),
                           Text(
-                            'Bản tóm tắt',
+                            'Summary',
                             style: Theme.of(context)
                                 .textTheme
                                 .titleMedium
@@ -530,7 +530,7 @@ class _SummaryOutput extends StatelessWidget {
                           TextButton.icon(
                             onPressed: onCopy,
                             icon: const Icon(Icons.copy, size: 18),
-                            label: const Text('Sao chép'),
+                            label: const Text('Copy'),
                           ),
                           FilledButton.tonalIcon(
                             key: const Key('downloadSummaryButton'),
@@ -558,21 +558,21 @@ class _SummaryOutput extends StatelessWidget {
                     runSpacing: 8,
                     children: [
                       _MetricChip(
-                        label: 'Gốc ${result.originalWordCount} từ',
+                        label: 'Original ${result.originalWordCount} words',
                       ),
                       _MetricChip(
-                        label: 'Tóm tắt ${result.summaryWordCount} từ',
+                        label: 'Summary ${result.summaryWordCount} words',
                       ),
                       _MetricChip(
                         label:
-                            'Còn ${(result.compressionRatio * 100).round()}%',
+                            '${(result.compressionRatio * 100).round()}% kept',
                       ),
                     ],
                   ),
                   if (result.keywords.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Text(
-                      'Từ khóa: ${result.keywords.join(', ')}',
+                      'Keywords: ${result.keywords.join(', ')}',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
@@ -603,13 +603,13 @@ class _EmptySummary extends StatelessWidget {
             Icon(Icons.summarize_outlined),
             SizedBox(width: 8),
             Text(
-              'Bản tóm tắt',
+              'Summary',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
             ),
           ],
         ),
         SizedBox(height: 10),
-        Text('Kết quả sẽ xuất hiện ở đây sau khi bạn bấm Tóm tắt.'),
+        Text('Your summary will appear here after you tap Summarize.'),
       ],
     );
   }
