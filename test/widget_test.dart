@@ -51,6 +51,8 @@ This solution is suitable for a prototype on Android and iOS phones.
 
     await tester.tap(find.text('PDF'));
     await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
 
     const sourceText = '''
 The system summarizes long documents into concise notes.

@@ -47,7 +47,6 @@ class _SummarizerPageState extends State<SummarizerPage> {
   bool _isPickingFile = false;
   bool _isSavingFile = false;
   bool _isSavingPdf = false;
-  bool _isSettingsExpanded = false;
   bool _isOcrEnabled = true;
 
   @override
@@ -155,10 +154,57 @@ class _SummarizerPageState extends State<SummarizerPage> {
     _showMessage('Summary length reset to 10%.');
   }
 
-  void _toggleSettings() {
-    setState(() {
-      _isSettingsExpanded = !_isSettingsExpanded;
-    });
+  void _openSettingsSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFFF6F8FC),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            void updateSheet(VoidCallback action) {
+              action();
+              setSheetState(() {});
+            }
+
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: SingleChildScrollView(
+                  child: _SettingsBar(
+                    language: _summaryLanguage,
+                    targetRatio: _targetRatio,
+                    isOcrEnabled: _isOcrEnabled,
+                    exportPreference: _exportPreference,
+                    onLanguageChanged: (value) {
+                      updateSheet(() => _setSummaryLanguage(value));
+                    },
+                    onTargetRatioChanged: (value) {
+                      updateSheet(() => _setSummaryLength(value));
+                    },
+                    onOcrChanged: (value) {
+                      updateSheet(() => _setOcrEnabled(value));
+                    },
+                    onExportPreferenceChanged: (value) {
+                      updateSheet(() => _setExportPreference(value));
+                    },
+                    onResetLength: () {
+                      updateSheet(_resetSummaryLength);
+                    },
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _copySummary() async {
@@ -349,6 +395,42 @@ class _SummarizerPageState extends State<SummarizerPage> {
             final isWide = constraints.maxWidth >= 920;
             final horizontalPadding = constraints.maxWidth > 720 ? 32.0 : 16.0;
 
+            if (!isWide) {
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                child: Column(
+                  children: [
+                    _Header(onOpenSettings: _openSettingsSheet),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: _PhoneWorkspace(
+                        controller: _inputController,
+                        documentName: _documentName,
+                        wordCount: inputWordCount,
+                        targetRatio: _targetRatio,
+                        result: _summaryResult,
+                        exportPreference: _exportPreference,
+                        isPickingFile: _isPickingFile,
+                        isSavingFile: _isSavingFile,
+                        isSavingPdf: _isSavingPdf,
+                        onPickFile: _pickTextFile,
+                        onClear: _clearInput,
+                        onSummarize: _summarize,
+                        onCopy: _copySummary,
+                        onDownload: _downloadSummary,
+                        onDownloadPdf: _downloadSummaryPdf,
+                        onTextChanged: () {
+                          setState(() {
+                            _summaryResult = null;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
             return SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(
                 horizontalPadding,
@@ -363,23 +445,8 @@ class _SummarizerPageState extends State<SummarizerPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _Header(
-                        isSettingsExpanded: _isSettingsExpanded,
-                        onToggleSettings: _toggleSettings,
+                        onOpenSettings: _openSettingsSheet,
                       ),
-                      if (_isSettingsExpanded) ...[
-                        const SizedBox(height: 10),
-                        _SettingsBar(
-                          language: _summaryLanguage,
-                          targetRatio: _targetRatio,
-                          isOcrEnabled: _isOcrEnabled,
-                          exportPreference: _exportPreference,
-                          onLanguageChanged: _setSummaryLanguage,
-                          onTargetRatioChanged: _setSummaryLength,
-                          onOcrChanged: _setOcrEnabled,
-                          onExportPreferenceChanged: _setExportPreference,
-                          onResetLength: _resetSummaryLength,
-                        ),
-                      ],
                       const SizedBox(height: 18),
                       if (isWide)
                         Row(
@@ -460,12 +527,10 @@ class _SummarizerPageState extends State<SummarizerPage> {
 
 class _Header extends StatelessWidget {
   const _Header({
-    required this.isSettingsExpanded,
-    required this.onToggleSettings,
+    required this.onOpenSettings,
   });
 
-  final bool isSettingsExpanded;
-  final VoidCallback onToggleSettings;
+  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -497,18 +562,236 @@ class _Header extends StatelessWidget {
             ),
           ),
           Tooltip(
-            message: isSettingsExpanded ? 'Close settings' : 'Open settings',
+            message: 'Open settings',
             child: IconButton.filledTonal(
               key: const Key('settingsToggleButton'),
-              onPressed: onToggleSettings,
-              icon: Icon(
-                isSettingsExpanded
-                    ? Icons.close
-                    : Icons.settings_outlined,
-              ),
+              onPressed: onOpenSettings,
+              icon: const Icon(Icons.settings_outlined),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PhoneWorkspace extends StatelessWidget {
+  const _PhoneWorkspace({
+    required this.controller,
+    required this.documentName,
+    required this.wordCount,
+    required this.targetRatio,
+    required this.result,
+    required this.exportPreference,
+    required this.isPickingFile,
+    required this.isSavingFile,
+    required this.isSavingPdf,
+    required this.onPickFile,
+    required this.onClear,
+    required this.onSummarize,
+    required this.onCopy,
+    required this.onDownload,
+    required this.onDownloadPdf,
+    required this.onTextChanged,
+  });
+
+  final TextEditingController controller;
+  final String? documentName;
+  final int wordCount;
+  final double targetRatio;
+  final SummaryResult? result;
+  final ExportPreference exportPreference;
+  final bool isPickingFile;
+  final bool isSavingFile;
+  final bool isSavingPdf;
+  final VoidCallback onPickFile;
+  final VoidCallback onClear;
+  final VoidCallback onSummarize;
+  final VoidCallback onCopy;
+  final VoidCallback onDownload;
+  final VoidCallback onDownloadPdf;
+  final VoidCallback onTextChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final result = this.result;
+    final hasDocument = documentName != null && documentName!.trim().isNotEmpty;
+    final percent = (targetRatio * 100).round();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    result == null
+                        ? Icons.article_outlined
+                        : Icons.summarize_outlined,
+                    color: const Color(0xFF2563EB),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        result == null ? 'Source document' : 'Summary',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: const Color(0xFF111827),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        result == null
+                            ? (hasDocument
+                                ? documentName!
+                                : 'Paste text or import a file')
+                            : '${result.summaryWordCount} words, $percent% target',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: const Color(0xFF697586),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _CountBadge(
+                  value: result == null
+                      ? wordCount.toString()
+                      : result.originalWordCount.toString(),
+                  label: result == null ? 'words' : 'source',
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: result == null
+                  ? TextField(
+                      key: const Key('sourceInput'),
+                      controller: controller,
+                      expands: true,
+                      minLines: null,
+                      maxLines: null,
+                      textAlignVertical: TextAlignVertical.top,
+                      textInputAction: TextInputAction.newline,
+                      decoration: const InputDecoration(
+                        alignLabelWithHint: true,
+                        labelText: 'Document content',
+                        hintText: 'Paste English/Vietnamese text...',
+                      ),
+                      onChanged: (_) => onTextChanged(),
+                    )
+                  : Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFBFCFE),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFE4EAF3)),
+                      ),
+                      child: SingleChildScrollView(
+                        child: SelectableText(
+                          result.summary,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: const Color(0xFF1F2937),
+                            height: 1.45,
+                          ),
+                        ),
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 10),
+            if (result == null) ...[
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton.icon(
+                    onPressed: isPickingFile ? null : onPickFile,
+                    icon: isPickingFile
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.upload_file),
+                    label: Text(isPickingFile ? 'Opening file' : 'Choose file'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: controller.text.isEmpty ? null : onClear,
+                    icon: const Icon(Icons.clear),
+                    label: const Text('Clear'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                key: const Key('summarizeButton'),
+                onPressed: onSummarize,
+                icon: const Icon(Icons.auto_awesome),
+                label: Text('Summarize ($percent%)'),
+              ),
+            ] else ...[
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: onTextChanged,
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    label: const Text('Edit text'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onCopy,
+                    icon: const Icon(Icons.copy, size: 18),
+                    label: const Text('Copy'),
+                  ),
+                  if (exportPreference != ExportPreference.pdf)
+                    FilledButton.tonalIcon(
+                      key: const Key('downloadSummaryButton'),
+                      onPressed: isSavingFile ? null : onDownload,
+                      icon: isSavingFile
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.file_download_outlined),
+                      label: Text(isSavingFile ? 'Saving' : 'Download .txt'),
+                    ),
+                  if (exportPreference != ExportPreference.text)
+                    FilledButton.icon(
+                      key: const Key('downloadSummaryPdfButton'),
+                      onPressed: isSavingPdf ? null : onDownloadPdf,
+                      icon: isSavingPdf
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.picture_as_pdf_outlined),
+                      label: Text(isSavingPdf ? 'Saving' : 'Download PDF'),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
