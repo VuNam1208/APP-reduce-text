@@ -43,10 +43,10 @@ class TextDocumentReader {
 
       return PickedTextDocument(
         name: response['name'] as String? ?? 'Tai lieu',
-        content: await _extractDocumentText(
+        content: cleanExtractedText(await _extractDocumentText(
           response,
           enableOcr: enableOcr,
-        ),
+        )),
       );
     } on MissingPluginException {
       throw const DocumentReaderException(
@@ -335,5 +335,65 @@ class TextDocumentReader {
 
   bool _isImageExtension(String extension) {
     return extension == 'jpg' || extension == 'jpeg' || extension == 'png';
+  }
+
+  static String cleanExtractedText(String text) {
+    var cleaned = text
+        .replaceAll('\u00A0', ' ')
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n')
+        .replaceAll(RegExp(r'-\s*\n\s*'), '')
+        .replaceAll(RegExp(r'[ \t]+'), ' ')
+        .replaceAll(RegExp(r' *\n *'), '\n')
+        .replaceAll(RegExp(r'\n{3,}'), '\n\n');
+
+    cleaned = cleaned
+        .split(RegExp(r'\n{2,}'))
+        .map((paragraph) => paragraph.replaceAll(RegExp(r'\n+'), ' ').trim())
+        .where((paragraph) => paragraph.isNotEmpty)
+        .join('\n\n');
+
+    cleaned = cleaned
+        .replaceAllMapped(
+          RegExp(r'([,;:])(?=\S)'),
+          (match) => '${match.group(1)} ',
+        )
+        .replaceAllMapped(
+          RegExp(r'([.!?])(?=[A-Za-z0-9À-ỹ])', unicode: true),
+          (match) => '${match.group(1)} ',
+        )
+        .replaceAllMapped(
+          RegExp(r'([a-zà-ỹ])([A-ZÀ-Ỹ])', unicode: true),
+          (match) => '${match.group(1)} ${match.group(2)}',
+        )
+        .replaceAllMapped(
+          RegExp(r'([A-Za-zÀ-ỹ])(\d)', unicode: true),
+          (match) => '${match.group(1)} ${match.group(2)}',
+        )
+        .replaceAllMapped(
+          RegExp(r'(\d)([A-Za-zÀ-ỹ])', unicode: true),
+          (match) => '${match.group(1)} ${match.group(2)}',
+        )
+        .replaceAllMapped(
+          RegExp(r'(\S)(\[)'),
+          (match) => '${match.group(1)} ${match.group(2)}',
+        )
+        .replaceAllMapped(
+          RegExp(r'(\])(?=\S)'),
+          (match) => '${match.group(1)} ',
+        )
+        .replaceAllMapped(
+          RegExp(r'([a-z]{4,})(and|with|for|from|into|using)(\s+[A-Z])'),
+          (match) => '${match.group(1)} ${match.group(2)}${match.group(3)}',
+        )
+        .replaceAllMapped(
+          RegExp(r'([a-z]{4,})witha(\s+[A-Z])'),
+          (match) => '${match.group(1)} with a${match.group(2)}',
+        )
+        .replaceAll(RegExp(r'[ \t]{2,}'), ' ')
+        .replaceAll(RegExp(r' *\n *'), '\n')
+        .trim();
+
+    return cleaned;
   }
 }
