@@ -313,51 +313,12 @@ class _SummarizerPageState extends State<SummarizerPage> {
 
   Uint8List _buildSummaryPdf(SummaryResult result) {
     final document = PdfDocument();
-    document.documentInformation.title = 'Summary';
-    document.documentInformation.author = 'Text Summarizer';
     document.pageSettings.margins.all = 32;
 
     final page = document.pages.add();
     final bounds = page.getClientSize();
-    final titleFont = PdfStandardFont(
-      PdfFontFamily.helvetica,
-      22,
-      style: PdfFontStyle.bold,
-    );
-    final metaFont = PdfStandardFont(PdfFontFamily.helvetica, 10);
     final bodyFont = PdfStandardFont(PdfFontFamily.helvetica, 12);
-    final titleBrush = PdfSolidBrush(PdfColor(18, 53, 91));
     final textBrush = PdfSolidBrush(PdfColor(38, 38, 38));
-    var y = 0.0;
-
-    page.graphics.drawString(
-      'Summary',
-      titleFont,
-      brush: titleBrush,
-      bounds: Rect.fromLTWH(0, y, bounds.width, 32),
-    );
-    y += 38;
-
-    final metaText =
-        'Original: ${result.originalWordCount} words  |  Summary: ${result.summaryWordCount} words  |  ${(result.compressionRatio * 100).round()}% kept';
-    page.graphics.drawString(
-      metaText,
-      metaFont,
-      brush: textBrush,
-      bounds: Rect.fromLTWH(0, y, bounds.width, 18),
-    );
-    y += 24;
-
-    if (result.keywords.isNotEmpty) {
-      page.graphics.drawString(
-        'Keywords: ${result.keywords.join(', ')}',
-        metaFont,
-        brush: textBrush,
-        bounds: Rect.fromLTWH(0, y, bounds.width, 36),
-        format: PdfStringFormat(lineSpacing: 2),
-      );
-      y += 42;
-    }
 
     PdfTextElement(
       text: result.summary,
@@ -366,7 +327,7 @@ class _SummarizerPageState extends State<SummarizerPage> {
       format: PdfStringFormat(lineSpacing: 4),
     ).draw(
       page: page,
-      bounds: Rect.fromLTWH(0, y, bounds.width, bounds.height - y),
+      bounds: Rect.fromLTWH(0, 0, bounds.width, bounds.height),
       format: PdfLayoutFormat(layoutType: PdfLayoutType.paginate),
     );
 
