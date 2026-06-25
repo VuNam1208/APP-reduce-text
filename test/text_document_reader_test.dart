@@ -21,4 +21,24 @@ void main() {
 
     expect(cleaned, 'This is a hyphenated word. This line continues.');
   });
+
+  test('looksUnreadableExtractedText detects broken PDF font encoding', () {
+    const brokenText =
+        '„IHÅCQUÈCGIAH€NËITR×ÍNG „IHÅCCÆNGNGH› Tr¦n Minh Tu§n '
+        'PH THI›NV€PH...NLO„IM, ËCDÜATR–NC CKž THUŠ THÅCS...'
+        'VIETNAMNATIONALUNIVERSITY, HANOIUNIVERSITYOFENGINEERINGANDTECHNOLOGY';
+
+    expect(TextDocumentReader.looksUnreadableExtractedText(brokenText), isTrue);
+  });
+
+  test('looksUnreadableExtractedText keeps normal English and Vietnamese text', () {
+    const readableText =
+        'Vietnam National University, Hanoi University of Engineering and Technology. '
+        'Trần Minh Tuấn nghiên cứu phát hiện mã độc bằng học sâu.';
+
+    expect(
+      TextDocumentReader.looksUnreadableExtractedText(readableText),
+      isFalse,
+    );
+  });
 }

@@ -169,9 +169,11 @@ class TextDocumentReader {
     final document = PdfDocument(inputBytes: bytes);
 
     try {
-      final text = PdfTextExtractor(document).extractText().trim();
+      final text = cleanExtractedText(
+        PdfTextExtractor(document).extractText().trim(),
+      );
 
-      if (text.isNotEmpty) {
+      if (text.isNotEmpty && !looksUnreadableExtractedText(text)) {
         return text;
       }
     } finally {
@@ -180,7 +182,7 @@ class TextDocumentReader {
 
     if (!enableOcr) {
       throw const DocumentReaderException(
-        'This PDF appears to be scanned. Enable OCR in Settings to read it.',
+        'This PDF text cannot be read correctly. Enable OCR in Settings to read it as an image.',
       );
     }
 
@@ -395,5 +397,79 @@ class TextDocumentReader {
         .trim();
 
     return cleaned;
+  }
+
+  static bool looksUnreadableExtractedText(String text) {
+    final sample = text.length > 5000 ? text.substring(0, 5000) : text;
+    final visibleCharacters =
+        sample.runes.where((rune) => !_isWhitespaceRune(rune)).length;
+
+    if (visibleCharacters == 0) {
+      return false;
+    }
+
+    final suspiciousCount = sample.runes
+        .where((rune) => _isSuspiciousExtractedRune(rune))
+        .length;
+    final suspiciousRatio = suspiciousCount / visibleCharacters;
+    final longRuns = RegExp(
+      r'[A-ZÀ-Ỹ]{18,}|[A-Za-zÀ-ỹ]{30,}',
+      unicode: true,
+    ).allMatches(sample).length;
+    final knownBrokenVietnamese = RegExp(
+      r'H€|CÆ|ngh›|Tr¦|Tu§|H€N|Cæng|÷|¼|PH\s+TH|THI›NV',
+      caseSensitive: false,
+    ).hasMatch(sample);
+
+    return knownBrokenVietnamese ||
+        suspiciousCount >= 12 ||
+        suspiciousRatio >= 0.02 ||
+        (longRuns >= 4 && suspiciousCount >= 3);
+  }
+
+  static bool _isWhitespaceRune(int rune) {
+    return rune == 9 || rune == 10 || rune == 13 || rune == 32;
+  }
+
+  static bool _isSuspiciousExtractedRune(int rune) {
+    const suspiciousRunes = {
+      0x00A2,
+      0x00A4,
+      0x00A5,
+      0x00A7,
+      0x00A8,
+      0x00AC,
+      0x00AE,
+      0x00AF,
+      0x00B1,
+      0x00B2,
+      0x00B3,
+      0x00B5,
+      0x00B6,
+      0x00B8,
+      0x00BC,
+      0x00BD,
+      0x00BE,
+      0x00BF,
+      0x00C6,
+      0x00D0,
+      0x00D7,
+      0x00DE,
+      0x00E6,
+      0x00F0,
+      0x00F7,
+      0x00FE,
+      0x0152,
+      0x0153,
+      0x0192,
+      0x201A,
+      0x201E,
+      0x2020,
+      0x2021,
+      0x20AC,
+      0xFFFD,
+    };
+
+    return suspiciousRunes.contains(rune);
   }
 }
