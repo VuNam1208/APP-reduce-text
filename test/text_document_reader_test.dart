@@ -22,6 +22,15 @@ void main() {
     expect(cleaned, 'This is a hyphenated word. This line continues.');
   });
 
+  test('cleanExtractedText joins common words split by OCR spaces', () {
+    const rawText =
+        'Noi dung chinh tro ng tai lieu nay co ph uong phap ng hien c uu va ket qua.';
+
+    final cleaned = TextDocumentReader.cleanExtractedText(rawText);
+
+    expect(cleaned, contains('trong tai lieu nay co phuong phap nghien cuu'));
+  });
+
   test('looksUnreadableExtractedText detects broken PDF font encoding', () {
     const brokenText =
         '„IHÅCQUÈCGIAH€NËITR×ÍNG „IHÅCCÆNGNGH› Tr¦n Minh Tu§n '

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
+import '../services/ai_summarizer_client.dart';
 import '../services/text_document_reader.dart';
 import '../services/text_summarizer.dart';
 
@@ -36,6 +37,7 @@ class SummarizerPage extends StatefulWidget {
 
 class _SummarizerPageState extends State<SummarizerPage> {
   final TextEditingController _inputController = TextEditingController();
+  final AiSummarizerClient _aiSummarizer = const AiSummarizerClient();
   final TextSummarizer _summarizer = const TextSummarizer();
   final TextDocumentReader _documentReader = const TextDocumentReader();
 
@@ -47,6 +49,7 @@ class _SummarizerPageState extends State<SummarizerPage> {
   bool _isPickingFile = false;
   bool _isSavingFile = false;
   bool _isSavingPdf = false;
+  bool _isSummarizing = false;
   bool _isOcrEnabled = true;
 
   @override
@@ -78,7 +81,7 @@ class _SummarizerPageState extends State<SummarizerPage> {
       if (document.content.trim().isEmpty) {
         _showMessage('This file does not contain readable text to summarize.');
       } else {
-        _summarize();
+        await _summarize();
       }
     } on DocumentReaderException catch (error) {
       if (mounted) {
@@ -93,7 +96,7 @@ class _SummarizerPageState extends State<SummarizerPage> {
     }
   }
 
-  void _summarize() {
+  Future<void> _summarize() async {
     final input = _inputController.text.trim();
 
     if (input.isEmpty) {
@@ -101,6 +104,57 @@ class _SummarizerPageState extends State<SummarizerPage> {
       return;
     }
 
+    if (_isSummarizing) {
+      return;
+    }
+
+    setState(() {
+      _isSummarizing = true;
+    });
+
+    try {
+      if (_aiSummarizer.isConfigured) {
+        final aiResult = await _aiSummarizer.summarize(
+          text: input,
+          targetRatio: _targetRatio,
+          language: _summaryLanguage.name,
+        );
+
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          _summaryResult = SummaryResult(
+            summary: aiResult.summary,
+            keywords: const [],
+            originalWordCount: aiResult.originalWordCount,
+            summaryWordCount: aiResult.summaryWordCount,
+            originalSentenceCount: 0,
+            summarySentenceCount: 0,
+          );
+        });
+        return;
+      }
+
+      _summarizeLocally(input);
+    } on AiSummarizerException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _summarizeLocally(input);
+      _showMessage('${error.message} Used local summary instead.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSummarizing = false;
+        });
+      }
+    }
+  }
+
+  void _summarizeLocally(String input) {
     setState(() {
       _summaryResult = _summarizer.summarize(
         input,
@@ -374,6 +428,7 @@ class _SummarizerPageState extends State<SummarizerPage> {
                         isPickingFile: _isPickingFile,
                         isSavingFile: _isSavingFile,
                         isSavingPdf: _isSavingPdf,
+                        isSummarizing: _isSummarizing,
                         onPickFile: _pickTextFile,
                         onClear: _clearInput,
                         onSummarize: _summarize,
@@ -435,6 +490,7 @@ class _SummarizerPageState extends State<SummarizerPage> {
                               child: _SummaryControls(
                                 targetRatio: _targetRatio,
                                 targetWordCount: targetWordCount,
+                                isSummarizing: _isSummarizing,
                                 onRatioChanged: _setSummaryLength,
                                 onSummarize: _summarize,
                               ),
@@ -459,6 +515,7 @@ class _SummarizerPageState extends State<SummarizerPage> {
                         _SummaryControls(
                           targetRatio: _targetRatio,
                           targetWordCount: targetWordCount,
+                          isSummarizing: _isSummarizing,
                           onRatioChanged: _setSummaryLength,
                           onSummarize: _summarize,
                         ),
@@ -547,6 +604,7 @@ class _PhoneWorkspace extends StatelessWidget {
     required this.isPickingFile,
     required this.isSavingFile,
     required this.isSavingPdf,
+    required this.isSummarizing,
     required this.onPickFile,
     required this.onClear,
     required this.onSummarize,
@@ -565,6 +623,7 @@ class _PhoneWorkspace extends StatelessWidget {
   final bool isPickingFile;
   final bool isSavingFile;
   final bool isSavingPdf;
+  final bool isSummarizing;
   final VoidCallback onPickFile;
   final VoidCallback onClear;
   final VoidCallback onSummarize;
@@ -703,9 +762,17 @@ class _PhoneWorkspace extends StatelessWidget {
               const SizedBox(height: 8),
               FilledButton.icon(
                 key: const Key('summarizeButton'),
-                onPressed: onSummarize,
-                icon: const Icon(Icons.auto_awesome),
-                label: Text('Summarize ($percent%)'),
+                onPressed: isSummarizing ? null : onSummarize,
+                icon: isSummarizing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.auto_awesome),
+                label: Text(
+                  isSummarizing ? 'Summarizing' : 'Summarize ($percent%)',
+                ),
               ),
             ] else ...[
               Wrap(
@@ -1074,12 +1141,14 @@ class _SummaryControls extends StatelessWidget {
   const _SummaryControls({
     required this.targetRatio,
     required this.targetWordCount,
+    required this.isSummarizing,
     required this.onRatioChanged,
     required this.onSummarize,
   });
 
   final double targetRatio;
   final int targetWordCount;
+  final bool isSummarizing;
   final ValueChanged<double> onRatioChanged;
   final VoidCallback onSummarize;
 
@@ -1186,9 +1255,15 @@ class _SummaryControls extends StatelessWidget {
             const SizedBox(height: 14),
             FilledButton.icon(
               key: const Key('summarizeButton'),
-              onPressed: onSummarize,
-              icon: const Icon(Icons.auto_awesome),
-              label: const Text('Summarize'),
+              onPressed: isSummarizing ? null : onSummarize,
+              icon: isSummarizing
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.auto_awesome),
+              label: Text(isSummarizing ? 'Summarizing' : 'Summarize'),
             ),
           ],
         ),

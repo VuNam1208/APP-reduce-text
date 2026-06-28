@@ -392,11 +392,85 @@ class TextDocumentReader {
           RegExp(r'([a-z]{4,})witha(\s+[A-Z])'),
           (match) => '${match.group(1)} with a${match.group(2)}',
         )
+        .split(RegExp(r'\n{2,}'))
+        .map(_joinCommonSplitWords)
+        .join('\n\n')
         .replaceAll(RegExp(r'[ \t]{2,}'), ' ')
         .replaceAll(RegExp(r' *\n *'), '\n')
         .trim();
 
     return cleaned;
+  }
+
+  static String _joinCommonSplitWords(String text) {
+    var fixed = text;
+    const replacements = <String, String>{
+      'tro ng': 'trong',
+      'tr ong': 'trong',
+      'kho ng': 'khong',
+      'kh ong': 'khong',
+      'n hu': 'nhu',
+      'nh u': 'nhu',
+      'nh ung': 'nhung',
+      'nhu ng': 'nhung',
+      'c ua': 'cua',
+      'cu a': 'cua',
+      'd uoc': 'duoc',
+      'du oc': 'duoc',
+      'd en': 'den',
+      'de n': 'den',
+      'd e': 'de',
+      'v oi': 'voi',
+      'vo i': 'voi',
+      'v a': 'va',
+      'c o': 'co',
+      'n ay': 'nay',
+      'na y': 'nay',
+      'p huong': 'phuong',
+      'ph uong': 'phuong',
+      'ng hien': 'nghien',
+      'ngh ien': 'nghien',
+      'c uu': 'cuu',
+      'q ua': 'qua',
+      'qu a': 'qua',
+      't he': 'the',
+      'th e': 'the',
+      'a nd': 'and',
+      'an d': 'and',
+      'w ith': 'with',
+      'wi th': 'with',
+      'wit h': 'with',
+      'f or': 'for',
+      'fo r': 'for',
+    };
+
+    for (final entry in replacements.entries) {
+      fixed = fixed.replaceAllMapped(
+        RegExp(
+          '(^|[^A-Za-z])${RegExp.escape(entry.key)}(?=[^A-Za-z]|\$)',
+          caseSensitive: false,
+        ),
+        (match) {
+          final prefix = match.group(1) ?? '';
+          final original = match.group(0)!.substring(prefix.length);
+          final replacement = _matchCapitalization(original, entry.value);
+
+          return '$prefix$replacement';
+        },
+      );
+    }
+
+    return fixed;
+  }
+
+  static String _matchCapitalization(String original, String replacement) {
+    final firstLetter = RegExp(r'[A-Za-z]').firstMatch(original)?.group(0);
+
+    if (firstLetter == null || firstLetter != firstLetter.toUpperCase()) {
+      return replacement;
+    }
+
+    return replacement[0].toUpperCase() + replacement.substring(1);
   }
 
   static bool looksUnreadableExtractedText(String text) {
