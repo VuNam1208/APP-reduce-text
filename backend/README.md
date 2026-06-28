@@ -10,6 +10,7 @@ backend/
     main.py                 FastAPI app and routes
     schemas.py              API request/response models
     config.py               .env settings
+    services/document_reader.py  TXT/PDF/DOCX/image extraction and OCR
     services/summarizer.py  OpenAI summarization logic
   requirements.txt
   Dockerfile
@@ -44,6 +45,9 @@ copy .env.example .env
 OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-5.1-mini
 PORT=8787
+WEB_CONCURRENCY=2
+MAX_FILE_BYTES=26214400
+OPENAI_MAX_CONCURRENCY=8
 ```
 
 Use another OpenAI model if your account or product cost target needs it.
@@ -91,6 +95,25 @@ Response:
 }
 ```
 
+### Summarize a file
+
+```http
+POST /api/summarize-file
+Content-Type: multipart/form-data
+```
+
+Fields:
+
+```text
+file: TXT/PDF/DOCX/JPG/PNG file
+targetRatio: 0.1
+language: auto | english | vietnamese
+enableOcr: true | false
+fallbackText: optional plain text fallback
+```
+
+The backend extracts and cleans the document text, then calls OpenAI.
+
 ## Flutter integration
 
 Run Flutter with the backend URL:
@@ -111,6 +134,15 @@ If `SUMMARY_API_URL` is not provided, the Flutter app keeps using the local summ
 - Store files only if the product needs history; otherwise delete source text after summarization.
 - Use PostgreSQL for users, subscriptions, and summary history.
 - Use Redis/Celery later for very large files or background jobs.
+- OCR requires Tesseract. The Dockerfile installs English and Vietnamese OCR data.
+
+## Scaling notes
+
+- Run multiple workers in production with `WEB_CONCURRENCY`.
+- Keep `MAX_FILE_BYTES` strict so one upload cannot exhaust memory.
+- `OPENAI_MAX_CONCURRENCY` caps simultaneous OpenAI calls per worker to reduce rate-limit spikes.
+- PDF/DOCX/OCR extraction runs in a worker thread so the FastAPI event loop can keep serving other users.
+- For serious paid traffic, put the API behind a load balancer and use Redis-backed rate limits plus a queue for slow OCR jobs.
 
 ## Docker
 

@@ -21,6 +21,8 @@ class SummarizeResponse(BaseModel):
     model: str
     originalWordCount: int
     summaryWordCount: int
+    fileName: str | None = None
+    extractedText: str | None = None
 
 
 class HealthResponse(BaseModel):

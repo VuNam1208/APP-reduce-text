@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 
 from openai import AsyncOpenAI, APIError, APITimeoutError, RateLimitError
@@ -18,6 +19,9 @@ class OpenAISummarizer:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._client: AsyncOpenAI | None = None
+        self._openai_semaphore = asyncio.Semaphore(
+            max(1, settings.openai_max_concurrency)
+        )
 
     async def summarize(self, request: SummarizeRequest) -> SummarizeResponse:
         if not self._settings.openai_api_key:
@@ -64,23 +68,24 @@ class OpenAISummarizer:
         mode: str,
     ) -> str:
         try:
-            response = await self._openai_client.responses.create(
-                model=self._settings.openai_model,
-                input=[
-                    {
-                        "role": "system",
-                        "content": build_system_prompt(language),
-                    },
-                    {
-                        "role": "user",
-                        "content": build_user_prompt(
-                            text=text,
-                            target_ratio=target_ratio,
-                            mode=mode,
-                        ),
-                    },
-                ],
-            )
+            async with self._openai_semaphore:
+                response = await self._openai_client.responses.create(
+                    model=self._settings.openai_model,
+                    input=[
+                        {
+                            "role": "system",
+                            "content": build_system_prompt(language),
+                        },
+                        {
+                            "role": "user",
+                            "content": build_user_prompt(
+                                text=text,
+                                target_ratio=target_ratio,
+                                mode=mode,
+                            ),
+                        },
+                    ],
+                )
         except RateLimitError as error:
             raise SummarizerError("OpenAI rate limit reached.", 429) from error
         except APITimeoutError as error:

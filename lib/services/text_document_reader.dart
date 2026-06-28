@@ -15,6 +15,18 @@ class PickedTextDocument {
   final String content;
 }
 
+class PickedDocumentFile {
+  const PickedDocumentFile({
+    required this.name,
+    required this.bytes,
+    required this.content,
+  });
+
+  final String name;
+  final Uint8List? bytes;
+  final String? content;
+}
+
 class DocumentReaderException implements Exception {
   const DocumentReaderException(this.message);
 
@@ -56,6 +68,31 @@ class TextDocumentReader {
     } on PlatformException catch (error) {
       throw DocumentReaderException(
         error.message ?? 'Khong the doc file da chon.',
+      );
+    }
+  }
+
+  Future<PickedDocumentFile?> pickDocumentFile() async {
+    try {
+      final response =
+          await _channel.invokeMapMethod<String, dynamic>('pickTextFile');
+
+      if (response == null) {
+        return null;
+      }
+
+      return PickedDocumentFile(
+        name: response['name'] as String? ?? 'document.txt',
+        bytes: _bytesFrom(response['bytes']),
+        content: response['content'] as String?,
+      );
+    } on MissingPluginException {
+      throw const DocumentReaderException(
+        'File picking is only available on Android and iOS.',
+      );
+    } on PlatformException catch (error) {
+      throw DocumentReaderException(
+        error.message ?? 'Could not open the selected file.',
       );
     }
   }

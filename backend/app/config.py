@@ -1,7 +1,5 @@
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
-
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -11,8 +9,15 @@ class Settings(BaseSettings):
     openai_model: str = Field(default="gpt-5.1-mini", alias="OPENAI_MODEL")
     app_env: str = Field(default="development", alias="APP_ENV")
     allowed_origins: str = Field(default="*", alias="ALLOWED_ORIGINS")
+    max_file_bytes: int = Field(default=25 * 1024 * 1024, alias="MAX_FILE_BYTES")
     max_text_chars: int = Field(default=220_000, alias="MAX_TEXT_CHARS")
     chunk_chars: int = Field(default=12_000, alias="CHUNK_CHARS")
+    ocr_languages: str = Field(default="eng+vie", alias="OCR_LANGUAGES")
+    openai_max_concurrency: int = Field(default=8, alias="OPENAI_MAX_CONCURRENCY")
+    document_processing_timeout_seconds: float = Field(
+        default=120,
+        alias="DOCUMENT_PROCESSING_TIMEOUT_SECONDS",
+    )
     request_timeout_seconds: float = Field(
         default=90,
         alias="REQUEST_TIMEOUT_SECONDS",

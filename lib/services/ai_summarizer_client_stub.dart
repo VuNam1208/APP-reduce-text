@@ -1,13 +1,17 @@
+import 'dart:typed_data';
+
 class AiSummaryResponse {
   const AiSummaryResponse({
     required this.summary,
     required this.originalWordCount,
     required this.summaryWordCount,
+    this.extractedText,
   });
 
   final String summary;
   final int originalWordCount;
   final int summaryWordCount;
+  final String? extractedText;
 }
 
 class AiSummarizerException implements Exception {
@@ -32,6 +36,19 @@ class AiSummarizerClient {
     required String text,
     required double targetRatio,
     required String language,
+  }) {
+    throw const AiSummarizerException(
+      'AI backend is only available on Android and iOS builds.',
+    );
+  }
+
+  Future<AiSummaryResponse> summarizeDocument({
+    required String fileName,
+    required Uint8List? bytes,
+    required String? fallbackText,
+    required double targetRatio,
+    required String language,
+    required bool enableOcr,
   }) {
     throw const AiSummarizerException(
       'AI backend is only available on Android and iOS builds.',

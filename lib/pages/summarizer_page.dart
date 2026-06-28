@@ -64,6 +64,11 @@ class _SummarizerPageState extends State<SummarizerPage> {
     });
 
     try {
+      if (_aiSummarizer.isConfigured) {
+        await _pickAndSummarizeDocumentWithBackend();
+        return;
+      }
+
       final document = await _documentReader.pickTextDocument(
         enableOcr: _isOcrEnabled,
       );
@@ -91,6 +96,64 @@ class _SummarizerPageState extends State<SummarizerPage> {
       if (mounted) {
         setState(() {
           _isPickingFile = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _pickAndSummarizeDocumentWithBackend() async {
+    final document = await _documentReader.pickDocumentFile();
+
+    if (!mounted || document == null) {
+      return;
+    }
+
+    if (document.bytes == null && (document.content?.trim().isEmpty ?? true)) {
+      _showMessage('This file does not contain readable text to summarize.');
+      return;
+    }
+
+    setState(() {
+      _documentName = document.name;
+      _inputController.text = document.content ?? '';
+      _summaryResult = null;
+      _isSummarizing = true;
+    });
+
+    try {
+      final aiResult = await _aiSummarizer.summarizeDocument(
+        fileName: document.name,
+        bytes: document.bytes,
+        fallbackText: document.content,
+        targetRatio: _targetRatio,
+        language: _summaryLanguage.name,
+        enableOcr: _isOcrEnabled,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      final extractedText = aiResult.extractedText?.trim() ?? '';
+      setState(() {
+        _inputController.text = extractedText;
+        _summaryResult = SummaryResult(
+          summary: aiResult.summary,
+          keywords: const [],
+          originalWordCount: aiResult.originalWordCount,
+          summaryWordCount: aiResult.summaryWordCount,
+          originalSentenceCount: 0,
+          summarySentenceCount: 0,
+        );
+      });
+    } on AiSummarizerException catch (error) {
+      if (mounted) {
+        _showMessage(error.message);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSummarizing = false;
         });
       }
     }
