@@ -59,7 +59,9 @@ class AiSummarizerClient {
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw AiSummarizerException(
-          data['error']?.toString() ?? 'AI backend request failed.',
+          data['error']?.toString() ??
+              data['detail']?.toString() ??
+              'AI backend request failed.',
         );
       }
 
