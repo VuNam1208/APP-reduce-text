@@ -7,8 +7,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     ai_provider: str = Field(default="openai", alias="AI_PROVIDER")
     ai_max_concurrency: int = Field(default=8, alias="AI_MAX_CONCURRENCY")
+    ai_max_output_tokens: int = Field(default=8192, alias="AI_MAX_OUTPUT_TOKENS")
+    openai_min_request_interval_seconds: float = Field(
+        default=0,
+        alias="OPENAI_MIN_REQUEST_INTERVAL_SECONDS",
+    )
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-5.1-mini", alias="OPENAI_MODEL")
+    gemini_min_request_interval_seconds: float = Field(
+        default=4.5,
+        alias="GEMINI_MIN_REQUEST_INTERVAL_SECONDS",
+    )
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     gemini_model: str = Field(default="gemini-3.1-flash-lite", alias="GEMINI_MODEL")
     app_env: str = Field(default="development", alias="APP_ENV")

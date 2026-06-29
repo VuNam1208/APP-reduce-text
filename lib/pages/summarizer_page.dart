@@ -793,7 +793,7 @@ class _PhoneWorkspace extends StatelessWidget {
                                 : isTextInputVisible
                                     ? 'Paste text to summarize'
                                     : 'Choose a file or enter text')
-                            : '${result.summaryWordCount} words, $percent% target',
+                            : '${result.summaryWordCount} words, target $percent% of original',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(
@@ -1083,7 +1083,7 @@ class _SettingsBar extends StatelessWidget {
           const SizedBox(height: 8),
           _SettingsItem(
             icon: Icons.compress,
-            label: 'Length',
+            label: 'Length of original',
             value: '$percent%',
             child: Slider(
               value: targetRatio,
@@ -1401,7 +1401,7 @@ class _SummaryControls extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Choose how compact the output should be.',
+                        'Choose the summary length as a percentage of the original text.',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: const Color(0xFF697586),
                         ),
@@ -1409,7 +1409,7 @@ class _SummaryControls extends StatelessWidget {
                     ],
                   ),
                 ),
-                _CountBadge(value: '$percent%', label: 'kept'),
+                _CountBadge(value: '$percent%', label: 'of original'),
               ],
             ),
             const SizedBox(height: 18),
@@ -1436,8 +1436,8 @@ class _SummaryControls extends StatelessWidget {
                           targetRatio == 0
                               ? 'Target: shortest possible summary'
                               : targetWordCount > 0
-                              ? 'Target: about $targetWordCount words'
-                              : 'Enter text to estimate target length',
+                                  ? 'Target: about $targetWordCount words from the original'
+                                  : 'Enter text to estimate target length',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             fontWeight: FontWeight.w700,
                           ),
@@ -1456,9 +1456,9 @@ class _SummaryControls extends StatelessWidget {
                   ),
                   const Row(
                     children: [
-                      Text('Short'),
+                      Text('0%'),
                       Spacer(),
-                      Text('Detailed'),
+                      Text('100% of original'),
                     ],
                   ),
                 ],
@@ -1573,9 +1573,9 @@ class _SummaryOutput extends StatelessWidget {
                       ),
                       _MetricChip(
                         icon: Icons.percent,
-                        label: 'Compression',
+                        label: 'Summary length',
                         value:
-                            '${(result.compressionRatio * 100).round()}% kept',
+                            '${(result.compressionRatio * 100).round()}% of original',
                       ),
                     ],
                   ),

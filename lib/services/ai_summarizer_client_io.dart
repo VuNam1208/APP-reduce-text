@@ -3,6 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+const _backendConnectionTimeout = Duration(seconds: 8);
+const _textSummaryTimeout = Duration(minutes: 5);
+const _documentSummaryTimeout = Duration(minutes: 15);
+
 class AiSummaryResponse {
   const AiSummaryResponse({
     required this.summary,
@@ -41,7 +45,7 @@ class AiSummarizerClient {
     required String language,
   }) async {
     final endpoint = _endpoint('/api/summarize');
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+    final client = HttpClient()..connectionTimeout = _backendConnectionTimeout;
 
     try {
       final request = await client.postUrl(endpoint);
@@ -54,9 +58,7 @@ class AiSummarizerClient {
         }),
       );
 
-      final response = await request.close().timeout(
-            const Duration(seconds: 90),
-          );
+      final response = await request.close().timeout(_textSummaryTimeout);
       return await _readSummaryResponse(response);
     } on TimeoutException {
       throw const AiSummarizerException('AI backend request timed out.');
@@ -78,7 +80,7 @@ class AiSummarizerClient {
     required bool enableOcr,
   }) async {
     final endpoint = _endpoint('/api/summarize-file');
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+    final client = HttpClient()..connectionTimeout = _backendConnectionTimeout;
     final boundary = '----text-summary-${DateTime.now().microsecondsSinceEpoch}';
 
     try {
@@ -109,9 +111,7 @@ class AiSummarizerClient {
 
       request.add(utf8.encode('--$boundary--\r\n'));
 
-      final response = await request.close().timeout(
-            const Duration(minutes: 3),
-          );
+      final response = await request.close().timeout(_documentSummaryTimeout);
       return await _readSummaryResponse(response);
     } on TimeoutException {
       throw const AiSummarizerException('AI backend request timed out.');
