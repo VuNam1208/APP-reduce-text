@@ -11,7 +11,7 @@ class SummaryLanguage(str, Enum):
 
 class SummarizeRequest(BaseModel):
     text: str = Field(min_length=1)
-    targetRatio: float = Field(default=0.1, ge=0.05, le=0.6)
+    targetRatio: float = Field(default=0.1, ge=0.0, le=1.0)
     language: SummaryLanguage = SummaryLanguage.auto
 
 

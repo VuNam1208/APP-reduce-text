@@ -35,6 +35,7 @@ migrate_working_dir/
 
 # Backend secrets
 .env
+flutter.env
 backend/.env
 backend/.venv/
 backend/__pycache__/

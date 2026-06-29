@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
+import '../models/summary_result.dart';
 import '../services/ai_summarizer_client.dart';
 import '../services/text_document_reader.dart';
-import '../services/text_summarizer.dart';
 
 enum SummaryLanguage {
   auto('Auto', 'Auto EN/VI'),
@@ -38,10 +38,10 @@ class SummarizerPage extends StatefulWidget {
 class _SummarizerPageState extends State<SummarizerPage> {
   final TextEditingController _inputController = TextEditingController();
   final AiSummarizerClient _aiSummarizer = const AiSummarizerClient();
-  final TextSummarizer _summarizer = const TextSummarizer();
   final TextDocumentReader _documentReader = const TextDocumentReader();
 
   SummaryResult? _summaryResult;
+  PickedDocumentFile? _selectedDocumentFile;
   String? _documentName;
   double _targetRatio = 0.1;
   SummaryLanguage _summaryLanguage = SummaryLanguage.auto;
@@ -51,6 +51,7 @@ class _SummarizerPageState extends State<SummarizerPage> {
   bool _isSavingPdf = false;
   bool _isSummarizing = false;
   bool _isOcrEnabled = true;
+  bool _isTextInputVisible = false;
 
   @override
   void dispose() {
@@ -59,35 +60,17 @@ class _SummarizerPageState extends State<SummarizerPage> {
   }
 
   Future<void> _pickTextFile() async {
+    if (!_ensureBackendConfigured()) {
+      return;
+    }
+
+    PickedDocumentFile? document;
     setState(() {
       _isPickingFile = true;
     });
 
     try {
-      if (_aiSummarizer.isConfigured) {
-        await _pickAndSummarizeDocumentWithBackend();
-        return;
-      }
-
-      final document = await _documentReader.pickTextDocument(
-        enableOcr: _isOcrEnabled,
-      );
-
-      if (!mounted || document == null) {
-        return;
-      }
-
-      setState(() {
-        _documentName = document.name;
-        _inputController.text = document.content;
-        _summaryResult = null;
-      });
-
-      if (document.content.trim().isEmpty) {
-        _showMessage('This file does not contain readable text to summarize.');
-      } else {
-        await _summarize();
-      }
+      document = await _documentReader.pickDocumentFile();
     } on DocumentReaderException catch (error) {
       if (mounted) {
         _showMessage(error.message);
@@ -99,23 +82,32 @@ class _SummarizerPageState extends State<SummarizerPage> {
         });
       }
     }
-  }
 
-  Future<void> _pickAndSummarizeDocumentWithBackend() async {
-    final document = await _documentReader.pickDocumentFile();
-
-    if (!mounted || document == null) {
+    final pickedDocument = document;
+    if (!mounted || pickedDocument == null) {
       return;
     }
 
-    if (document.bytes == null && (document.content?.trim().isEmpty ?? true)) {
-      _showMessage('This file does not contain readable text to summarize.');
+    setState(() {
+      _selectedDocumentFile = pickedDocument;
+      _documentName = pickedDocument.name;
+      _inputController.clear();
+      _summaryResult = null;
+      _isTextInputVisible = false;
+    });
+    _showMessage('File selected. Tap Summarize to process it.');
+  }
+
+  Future<void> _summarizePickedDocumentWithBackend(
+    PickedDocumentFile document,
+  ) async {
+    if (document.bytes == null) {
+      _showMessage('Could not read the selected file bytes.');
       return;
     }
 
     setState(() {
       _documentName = document.name;
-      _inputController.text = document.content ?? '';
       _summaryResult = null;
       _isSummarizing = true;
     });
@@ -124,7 +116,7 @@ class _SummarizerPageState extends State<SummarizerPage> {
       final aiResult = await _aiSummarizer.summarizeDocument(
         fileName: document.name,
         bytes: document.bytes,
-        fallbackText: document.content,
+        fallbackText: null,
         targetRatio: _targetRatio,
         language: _summaryLanguage.name,
         enableOcr: _isOcrEnabled,
@@ -137,13 +129,12 @@ class _SummarizerPageState extends State<SummarizerPage> {
       final extractedText = aiResult.extractedText?.trim() ?? '';
       setState(() {
         _inputController.text = extractedText;
+        _selectedDocumentFile = null;
+        _isTextInputVisible = false;
         _summaryResult = SummaryResult(
           summary: aiResult.summary,
-          keywords: const [],
           originalWordCount: aiResult.originalWordCount,
           summaryWordCount: aiResult.summaryWordCount,
-          originalSentenceCount: 0,
-          summarySentenceCount: 0,
         );
       });
     } on AiSummarizerException catch (error) {
@@ -161,8 +152,9 @@ class _SummarizerPageState extends State<SummarizerPage> {
 
   Future<void> _summarize() async {
     final input = _inputController.text.trim();
+    final selectedDocument = _selectedDocumentFile;
 
-    if (input.isEmpty) {
+    if (input.isEmpty && selectedDocument == null) {
       _showMessage('Enter text or choose a file first.');
       return;
     }
@@ -171,43 +163,43 @@ class _SummarizerPageState extends State<SummarizerPage> {
       return;
     }
 
+    if (!_ensureBackendConfigured()) {
+      return;
+    }
+
+    if (input.isEmpty && selectedDocument != null) {
+      await _summarizePickedDocumentWithBackend(selectedDocument);
+      return;
+    }
+
     setState(() {
       _isSummarizing = true;
     });
 
     try {
-      if (_aiSummarizer.isConfigured) {
-        final aiResult = await _aiSummarizer.summarize(
-          text: input,
-          targetRatio: _targetRatio,
-          language: _summaryLanguage.name,
-        );
+      final aiResult = await _aiSummarizer.summarize(
+        text: input,
+        targetRatio: _targetRatio,
+        language: _summaryLanguage.name,
+      );
 
-        if (!mounted) {
-          return;
-        }
-
-        setState(() {
-          _summaryResult = SummaryResult(
-            summary: aiResult.summary,
-            keywords: const [],
-            originalWordCount: aiResult.originalWordCount,
-            summaryWordCount: aiResult.summaryWordCount,
-            originalSentenceCount: 0,
-            summarySentenceCount: 0,
-          );
-        });
+      if (!mounted) {
         return;
       }
 
-      _summarizeLocally(input);
+      setState(() {
+        _summaryResult = SummaryResult(
+          summary: aiResult.summary,
+          originalWordCount: aiResult.originalWordCount,
+          summaryWordCount: aiResult.summaryWordCount,
+        );
+      });
     } on AiSummarizerException catch (error) {
       if (!mounted) {
         return;
       }
 
-      _summarizeLocally(input);
-      _showMessage('${error.message} Used local summary instead.');
+      _showMessage(error.message);
     } finally {
       if (mounted) {
         setState(() {
@@ -217,13 +209,15 @@ class _SummarizerPageState extends State<SummarizerPage> {
     }
   }
 
-  void _summarizeLocally(String input) {
-    setState(() {
-      _summaryResult = _summarizer.summarize(
-        input,
-        targetRatio: _targetRatio,
-      );
-    });
+  bool _ensureBackendConfigured() {
+    if (_aiSummarizer.isConfigured) {
+      return true;
+    }
+
+    _showMessage(
+      'Backend URL is not configured. Build the app with SUMMARY_API_URL.',
+    );
+    return false;
   }
 
   void _clearInput() {
@@ -231,6 +225,36 @@ class _SummarizerPageState extends State<SummarizerPage> {
       _inputController.clear();
       _summaryResult = null;
       _documentName = null;
+      _selectedDocumentFile = null;
+      _isTextInputVisible = false;
+    });
+  }
+
+  void _showTextInput() {
+    setState(() {
+      _summaryResult = null;
+      _selectedDocumentFile = null;
+      _documentName = null;
+      _isTextInputVisible = true;
+    });
+  }
+
+  void _editSourceText() {
+    setState(() {
+      _summaryResult = null;
+      _selectedDocumentFile = null;
+      _isTextInputVisible = true;
+    });
+  }
+
+  void _handleSourceTextChanged() {
+    setState(() {
+      _summaryResult = null;
+      _isTextInputVisible = true;
+      if (_inputController.text.trim().isNotEmpty) {
+        _selectedDocumentFile = null;
+        _documentName = null;
+      }
     });
   }
 
@@ -384,9 +408,10 @@ class _SummarizerPageState extends State<SummarizerPage> {
     });
 
     try {
+      final pdfBytes = await _buildSummaryPdf(result);
       final saved = await _documentReader.saveBinaryDocument(
         fileName: _summaryPdfFileName(),
-        bytes: _buildSummaryPdf(result),
+        bytes: pdfBytes,
         mimeType: 'application/pdf',
       );
 
@@ -400,6 +425,10 @@ class _SummarizerPageState extends State<SummarizerPage> {
     } on DocumentReaderException catch (error) {
       if (mounted) {
         _showMessage(error.message);
+      }
+    } catch (error) {
+      if (mounted) {
+        _showMessage('Could not save PDF: $error');
       }
     } finally {
       if (mounted) {
@@ -428,13 +457,21 @@ class _SummarizerPageState extends State<SummarizerPage> {
     return textFileName.replaceFirst(RegExp(r'\.txt$'), '.pdf');
   }
 
-  Uint8List _buildSummaryPdf(SummaryResult result) {
+  Future<Uint8List> _buildSummaryPdf(SummaryResult result) async {
+    final regularFontData = await rootBundle.load(
+      'assets/fonts/Roboto-Regular.ttf',
+    );
+    final regularFontBytes = regularFontData.buffer.asUint8List(
+      regularFontData.offsetInBytes,
+      regularFontData.lengthInBytes,
+    );
+
     final document = PdfDocument();
     document.pageSettings.margins.all = 32;
 
     final page = document.pages.add();
     final bounds = page.getClientSize();
-    final bodyFont = PdfStandardFont(PdfFontFamily.helvetica, 12);
+    final bodyFont = PdfTrueTypeFont(regularFontBytes, 12);
     final textBrush = PdfSolidBrush(PdfColor(38, 38, 38));
 
     PdfTextElement(
@@ -462,7 +499,8 @@ class _SummarizerPageState extends State<SummarizerPage> {
 
   @override
   Widget build(BuildContext context) {
-    final inputWordCount = TextSummarizer.countWords(_inputController.text);
+    final inputWordCount = _summaryResult?.originalWordCount ??
+        (_isTextInputVisible ? _countWords(_inputController.text) : 0);
     final targetWordCount = (inputWordCount * _targetRatio).round();
 
     return Scaffold(
@@ -492,17 +530,16 @@ class _SummarizerPageState extends State<SummarizerPage> {
                         isSavingFile: _isSavingFile,
                         isSavingPdf: _isSavingPdf,
                         isSummarizing: _isSummarizing,
+                        isTextInputVisible: _isTextInputVisible,
                         onPickFile: _pickTextFile,
+                        onEnterText: _showTextInput,
                         onClear: _clearInput,
                         onSummarize: _summarize,
                         onCopy: _copySummary,
                         onDownload: _downloadSummary,
                         onDownloadPdf: _downloadSummaryPdf,
-                        onTextChanged: () {
-                          setState(() {
-                            _summaryResult = null;
-                          });
-                        },
+                        onEditText: _editSourceText,
+                        onTextChanged: _handleSourceTextChanged,
                       ),
                     ),
                   ],
@@ -538,13 +575,11 @@ class _SummarizerPageState extends State<SummarizerPage> {
                                 documentName: _documentName,
                                 wordCount: inputWordCount,
                                 isPickingFile: _isPickingFile,
+                                isTextInputVisible: _isTextInputVisible,
                                 onPickFile: _pickTextFile,
+                                onEnterText: _showTextInput,
                                 onClear: _clearInput,
-                                onTextChanged: () {
-                                  setState(() {
-                                    _summaryResult = null;
-                                  });
-                                },
+                                onTextChanged: _handleSourceTextChanged,
                               ),
                             ),
                             const SizedBox(width: 18),
@@ -566,13 +601,11 @@ class _SummarizerPageState extends State<SummarizerPage> {
                           documentName: _documentName,
                           wordCount: inputWordCount,
                           isPickingFile: _isPickingFile,
+                          isTextInputVisible: _isTextInputVisible,
                           onPickFile: _pickTextFile,
+                          onEnterText: _showTextInput,
                           onClear: _clearInput,
-                          onTextChanged: () {
-                            setState(() {
-                              _summaryResult = null;
-                            });
-                          },
+                          onTextChanged: _handleSourceTextChanged,
                         ),
                         const SizedBox(height: 16),
                         _SummaryControls(
@@ -602,6 +635,14 @@ class _SummarizerPageState extends State<SummarizerPage> {
         ),
       ),
     );
+  }
+
+  int _countWords(String text) {
+    return text
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((word) => word.trim().isNotEmpty)
+        .length;
   }
 
 }
@@ -668,12 +709,15 @@ class _PhoneWorkspace extends StatelessWidget {
     required this.isSavingFile,
     required this.isSavingPdf,
     required this.isSummarizing,
+    required this.isTextInputVisible,
     required this.onPickFile,
+    required this.onEnterText,
     required this.onClear,
     required this.onSummarize,
     required this.onCopy,
     required this.onDownload,
     required this.onDownloadPdf,
+    required this.onEditText,
     required this.onTextChanged,
   });
 
@@ -687,12 +731,15 @@ class _PhoneWorkspace extends StatelessWidget {
   final bool isSavingFile;
   final bool isSavingPdf;
   final bool isSummarizing;
+  final bool isTextInputVisible;
   final VoidCallback onPickFile;
+  final VoidCallback onEnterText;
   final VoidCallback onClear;
   final VoidCallback onSummarize;
   final VoidCallback onCopy;
   final VoidCallback onDownload;
   final VoidCallback onDownloadPdf;
+  final VoidCallback onEditText;
   final VoidCallback onTextChanged;
 
   @override
@@ -743,7 +790,9 @@ class _PhoneWorkspace extends StatelessWidget {
                         result == null
                             ? (hasDocument
                                 ? documentName!
-                                : 'Paste text or import a file')
+                                : isTextInputVisible
+                                    ? 'Paste text to summarize'
+                                    : 'Choose a file or enter text')
                             : '${result.summaryWordCount} words, $percent% target',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -765,21 +814,26 @@ class _PhoneWorkspace extends StatelessWidget {
             const SizedBox(height: 12),
             Expanded(
               child: result == null
-                  ? TextField(
-                      key: const Key('sourceInput'),
-                      controller: controller,
-                      expands: true,
-                      minLines: null,
-                      maxLines: null,
-                      textAlignVertical: TextAlignVertical.top,
-                      textInputAction: TextInputAction.newline,
-                      decoration: const InputDecoration(
-                        alignLabelWithHint: true,
-                        labelText: 'Document content',
-                        hintText: 'Paste English/Vietnamese text...',
-                      ),
-                      onChanged: (_) => onTextChanged(),
-                    )
+                  ? isTextInputVisible
+                      ? TextField(
+                          key: const Key('sourceInput'),
+                          controller: controller,
+                          expands: true,
+                          minLines: null,
+                          maxLines: null,
+                          textAlignVertical: TextAlignVertical.top,
+                          textInputAction: TextInputAction.newline,
+                          decoration: const InputDecoration(
+                            alignLabelWithHint: true,
+                            labelText: 'Document content',
+                            hintText: 'Paste English/Vietnamese text...',
+                          ),
+                          onChanged: (_) => onTextChanged(),
+                        )
+                      : _SourcePlaceholder(
+                          hasDocument: hasDocument,
+                          documentName: documentName,
+                        )
                   : Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -816,7 +870,17 @@ class _PhoneWorkspace extends StatelessWidget {
                     label: Text(isPickingFile ? 'Opening file' : 'Choose file'),
                   ),
                   OutlinedButton.icon(
-                    onPressed: controller.text.isEmpty ? null : onClear,
+                    key: const Key('enterTextButton'),
+                    onPressed: isTextInputVisible ? null : onEnterText,
+                    icon: const Icon(Icons.edit_note_outlined),
+                    label: const Text('Enter text'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: controller.text.isEmpty &&
+                            !hasDocument &&
+                            !isTextInputVisible
+                        ? null
+                        : onClear,
                     icon: const Icon(Icons.clear),
                     label: const Text('Clear'),
                   ),
@@ -843,7 +907,7 @@ class _PhoneWorkspace extends StatelessWidget {
                 runSpacing: 8,
                 children: [
                   OutlinedButton.icon(
-                    onPressed: onTextChanged,
+                    onPressed: onEditText,
                     icon: const Icon(Icons.edit_outlined, size: 18),
                     label: const Text('Edit text'),
                   ),
@@ -881,6 +945,61 @@ class _PhoneWorkspace extends StatelessWidget {
                 ],
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SourcePlaceholder extends StatelessWidget {
+  const _SourcePlaceholder({
+    required this.hasDocument,
+    required this.documentName,
+  });
+
+  final bool hasDocument;
+  final String? documentName;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFBFCFE),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE4EAF3)),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              hasDocument ? Icons.insert_drive_file_outlined : Icons.input,
+              size: 36,
+              color: const Color(0xFF4F66A3),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              hasDocument ? documentName ?? 'Selected file' : 'No source yet',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: const Color(0xFF111827),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              hasDocument
+                  ? 'Tap Summarize to process this file.'
+                  : 'Choose a file or tap Enter text.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: const Color(0xFF697586),
+              ),
+            ),
           ],
         ),
       ),
@@ -968,9 +1087,9 @@ class _SettingsBar extends StatelessWidget {
             value: '$percent%',
             child: Slider(
               value: targetRatio,
-              min: 0.05,
-              max: 0.3,
-              divisions: 5,
+              min: 0,
+              max: 1,
+              divisions: 100,
               label: '$percent%',
               onChanged: onTargetRatioChanged,
             ),
@@ -1081,7 +1200,9 @@ class _InputSection extends StatelessWidget {
     required this.documentName,
     required this.wordCount,
     required this.isPickingFile,
+    required this.isTextInputVisible,
     required this.onPickFile,
+    required this.onEnterText,
     required this.onClear,
     required this.onTextChanged,
   });
@@ -1090,7 +1211,9 @@ class _InputSection extends StatelessWidget {
   final String? documentName;
   final int wordCount;
   final bool isPickingFile;
+  final bool isTextInputVisible;
   final VoidCallback onPickFile;
+  final VoidCallback onEnterText;
   final VoidCallback onClear;
   final VoidCallback onTextChanged;
 
@@ -1133,7 +1256,11 @@ class _InputSection extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        hasDocument ? documentName! : 'Paste text or import a file',
+                        hasDocument
+                            ? documentName!
+                            : isTextInputVisible
+                                ? 'Paste text to summarize'
+                                : 'Choose a file or enter text',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(
@@ -1150,19 +1277,29 @@ class _InputSection extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            TextField(
-              key: const Key('sourceInput'),
-              controller: controller,
-              minLines: 11,
-              maxLines: 18,
-              textInputAction: TextInputAction.newline,
-              decoration: const InputDecoration(
-                alignLabelWithHint: true,
-                labelText: 'Document content',
-                hintText: 'Paste English/Vietnamese text or open TXT, PDF, DOCX, JPG, PNG...',
+            if (isTextInputVisible)
+              TextField(
+                key: const Key('sourceInput'),
+                controller: controller,
+                minLines: 11,
+                maxLines: 18,
+                textInputAction: TextInputAction.newline,
+                decoration: const InputDecoration(
+                  alignLabelWithHint: true,
+                  labelText: 'Document content',
+                  hintText:
+                      'Paste English/Vietnamese text or open TXT, PDF, DOCX, JPG, PNG...',
+                ),
+                onChanged: (_) => onTextChanged(),
+              )
+            else
+              SizedBox(
+                height: 190,
+                child: _SourcePlaceholder(
+                  hasDocument: hasDocument,
+                  documentName: documentName,
+                ),
               ),
-              onChanged: (_) => onTextChanged(),
-            ),
             const SizedBox(height: 14),
             Wrap(
               spacing: 10,
@@ -1180,7 +1317,17 @@ class _InputSection extends StatelessWidget {
                   label: Text(isPickingFile ? 'Opening file' : 'Choose file'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: controller.text.isEmpty ? null : onClear,
+                  key: const Key('enterTextButton'),
+                  onPressed: isTextInputVisible ? null : onEnterText,
+                  icon: const Icon(Icons.edit_note_outlined),
+                  label: const Text('Enter text'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: controller.text.isEmpty &&
+                          !hasDocument &&
+                          !isTextInputVisible
+                      ? null
+                      : onClear,
                   icon: const Icon(Icons.clear),
                   label: const Text('Clear text'),
                 ),
@@ -1286,7 +1433,9 @@ class _SummaryControls extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          targetWordCount > 0
+                          targetRatio == 0
+                              ? 'Target: shortest possible summary'
+                              : targetWordCount > 0
                               ? 'Target: about $targetWordCount words'
                               : 'Enter text to estimate target length',
                           style: theme.textTheme.bodyMedium?.copyWith(
@@ -1299,9 +1448,9 @@ class _SummaryControls extends StatelessWidget {
                   const SizedBox(height: 10),
                   Slider(
                     value: targetRatio,
-                    min: 0.05,
-                    max: 0.3,
-                    divisions: 5,
+                    min: 0,
+                    max: 1,
+                    divisions: 100,
                     label: '$percent%',
                     onChanged: onRatioChanged,
                   ),
@@ -1476,16 +1625,6 @@ class _SummaryOutput extends StatelessWidget {
                         ),
                     ],
                   ),
-                  if (result.keywords.isNotEmpty) ...[
-                    const SizedBox(height: 14),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: result.keywords
-                          .map((keyword) => _KeywordChip(label: keyword))
-                          .toList(),
-                    ),
-                  ],
                   const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.all(16),
@@ -1578,31 +1717,6 @@ class _StatusPill extends StatelessWidget {
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: const Color(0xFF0F766E),
               fontWeight: FontWeight.w800,
-            ),
-      ),
-    );
-  }
-}
-
-class _KeywordChip extends StatelessWidget {
-  const _KeywordChip({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF7ED),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFFAD7AA)),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: const Color(0xFF9A4C05),
-              fontWeight: FontWeight.w700,
             ),
       ),
     );

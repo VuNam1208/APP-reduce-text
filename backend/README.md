@@ -1,6 +1,6 @@
 # Text Summarizer Python Backend
 
-FastAPI backend for the Flutter Text Summarizer app. The mobile app sends extracted text here, and this server calls OpenAI so the API key never ships inside Android or iOS builds.
+FastAPI backend for the Flutter Text Summarizer app. The mobile app sends extracted text here, and this server calls the configured AI provider so API keys never ship inside Android or iOS builds.
 
 ## Structure
 
@@ -11,7 +11,7 @@ backend/
     schemas.py              API request/response models
     config.py               .env settings
     services/document_reader.py  TXT/PDF/DOCX/image extraction and OCR
-    services/summarizer.py  OpenAI summarization logic
+    services/summarizer.py  OpenAI/Gemini summarization logic
   requirements.txt
   Dockerfile
   .env.example
@@ -42,15 +42,18 @@ copy .env.example .env
 4. Edit `.env` and set:
 
 ```env
+AI_PROVIDER=openai
+AI_MAX_CONCURRENCY=8
 OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-5.1-mini
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-3.1-flash-lite
 PORT=8787
 WEB_CONCURRENCY=2
 MAX_FILE_BYTES=26214400
-OPENAI_MAX_CONCURRENCY=8
 ```
 
-Use another OpenAI model if your account or product cost target needs it.
+Use `AI_PROVIDER=openai` or `AI_PROVIDER=gemini`. Only the selected provider's API key is required.
 
 5. Run the server:
 
@@ -76,12 +79,12 @@ Content-Type: application/json
 ```json
 {
   "text": "Long document text here...",
-  "targetRatio": 0.1,
+  "targetRatio": 0.2,
   "language": "auto"
 }
 ```
 
-`language` can be `auto`, `english`, or `vietnamese`.
+`targetRatio` can be `0.0` to `1.0`, where `0.2` means about 20% of the original length. `language` can be `auto`, `english`, or `vietnamese`.
 
 Response:
 
@@ -106,29 +109,42 @@ Fields:
 
 ```text
 file: TXT/PDF/DOCX/JPG/PNG file
-targetRatio: 0.1
+targetRatio: 0.2
 language: auto | english | vietnamese
 enableOcr: true | false
 fallbackText: optional plain text fallback
 ```
 
-The backend extracts and cleans the document text, then calls OpenAI.
+The backend extracts and cleans the document text, then calls the configured AI provider.
 
 ## Flutter integration
 
-Run Flutter with the backend URL:
+Create a Flutter build env file at the project root:
 
 ```powershell
-flutter run --dart-define=SUMMARY_API_URL=http://10.0.2.2:8787
+copy flutter.env.example flutter.env
 ```
 
-`10.0.2.2` is the Android emulator address for your computer. For a real phone, replace it with your computer LAN IP while testing, then use your production backend URL after deployment.
+Edit `flutter.env`:
 
-If `SUMMARY_API_URL` is not provided, the Flutter app keeps using the local summarizer fallback.
+```env
+SUMMARY_API_URL=http://10.11.55.255:8787
+```
+
+Then run or build the app:
+
+```powershell
+flutter run --dart-define-from-file=flutter.env
+flutter build apk --debug --dart-define-from-file=flutter.env
+```
+
+For the Android emulator, use `http://10.0.2.2:8787`. For a real phone, use your computer LAN IP while testing. For production, use your HTTPS backend URL.
+
+If `SUMMARY_API_URL` is not provided, the Flutter app will show a backend configuration error.
 
 ## Production notes
 
-- Keep `OPENAI_API_KEY` only on the backend.
+- Keep AI provider keys only on the backend.
 - Add authentication before public launch.
 - Add per-user quota/rate limits before paid plans.
 - Store files only if the product needs history; otherwise delete source text after summarization.
@@ -140,7 +156,7 @@ If `SUMMARY_API_URL` is not provided, the Flutter app keeps using the local summ
 
 - Run multiple workers in production with `WEB_CONCURRENCY`.
 - Keep `MAX_FILE_BYTES` strict so one upload cannot exhaust memory.
-- `OPENAI_MAX_CONCURRENCY` caps simultaneous OpenAI calls per worker to reduce rate-limit spikes.
+- `AI_MAX_CONCURRENCY` caps simultaneous AI calls per worker to reduce rate-limit spikes.
 - PDF/DOCX/OCR extraction runs in a worker thread so the FastAPI event loop can keep serving other users.
 - For serious paid traffic, put the API behind a load balancer and use Redis-backed rate limits plus a queue for slow OCR jobs.
 

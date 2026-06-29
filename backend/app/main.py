@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,10 +15,11 @@ from app.services.document_reader import (
     DocumentProcessingError,
     extract_document_text,
 )
-from app.services.summarizer import OpenAISummarizer, SummarizerError
+from app.services.summarizer import AISummarizer, SummarizerError
 
 settings = get_settings()
 UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
+logger = logging.getLogger("text_summarizer")
 
 app = FastAPI(
     title="Text Summarizer API",
@@ -33,7 +35,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-summarizer = OpenAISummarizer(settings)
+summarizer = AISummarizer(settings)
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -57,12 +59,17 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
     try:
         return await summarizer.summarize(request)
     except SummarizerError as error:
+        logger.warning(
+            "AI summarization failed: status=%s message=%s",
+            error.status_code,
+            error.message,
+        )
         raise HTTPException(status_code=error.status_code, detail=error.message) from error
 
 
 @app.post("/api/summarize-file", response_model=SummarizeResponse)
 async def summarize_file(
-    targetRatio: float = Form(default=0.1, ge=0.05, le=0.6),
+    targetRatio: float = Form(default=0.1, ge=0.0, le=1.0),
     language: SummaryLanguage = Form(default=SummaryLanguage.auto),
     enableOcr: bool = Form(default=True),
     fallbackText: str = Form(default=""),
@@ -119,6 +126,11 @@ async def summarize_file(
         response.extractedText = document.text
         return response
     except SummarizerError as error:
+        logger.warning(
+            "File summarization failed: status=%s message=%s",
+            error.status_code,
+            error.message,
+        )
         raise HTTPException(status_code=error.status_code, detail=error.message) from error
 
 

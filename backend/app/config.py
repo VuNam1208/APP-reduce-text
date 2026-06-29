@@ -5,15 +5,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    ai_provider: str = Field(default="openai", alias="AI_PROVIDER")
+    ai_max_concurrency: int = Field(default=8, alias="AI_MAX_CONCURRENCY")
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-5.1-mini", alias="OPENAI_MODEL")
+    gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
+    gemini_model: str = Field(default="gemini-3.1-flash-lite", alias="GEMINI_MODEL")
     app_env: str = Field(default="development", alias="APP_ENV")
     allowed_origins: str = Field(default="*", alias="ALLOWED_ORIGINS")
     max_file_bytes: int = Field(default=25 * 1024 * 1024, alias="MAX_FILE_BYTES")
     max_text_chars: int = Field(default=220_000, alias="MAX_TEXT_CHARS")
     chunk_chars: int = Field(default=12_000, alias="CHUNK_CHARS")
     ocr_languages: str = Field(default="eng+vie", alias="OCR_LANGUAGES")
-    openai_max_concurrency: int = Field(default=8, alias="OPENAI_MAX_CONCURRENCY")
     document_processing_timeout_seconds: float = Field(
         default=120,
         alias="DOCUMENT_PROCESSING_TIMEOUT_SECONDS",
@@ -34,6 +37,10 @@ class Settings(BaseSettings):
     def cors_origins(self) -> list[str]:
         origins = [item.strip() for item in self.allowed_origins.split(",")]
         return [origin for origin in origins if origin]
+
+    @property
+    def normalized_ai_provider(self) -> str:
+        return self.ai_provider.strip().lower()
 
 
 @lru_cache

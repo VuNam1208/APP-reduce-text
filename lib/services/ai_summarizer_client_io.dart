@@ -110,7 +110,7 @@ class AiSummarizerClient {
       request.add(utf8.encode('--$boundary--\r\n'));
 
       final response = await request.close().timeout(
-            const Duration(seconds: 120),
+            const Duration(minutes: 3),
           );
       return await _readSummaryResponse(response);
     } on TimeoutException {

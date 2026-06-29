@@ -51,22 +51,22 @@ class MainActivity : FlutterActivity() {
                 }
                 "saveBinaryFile" -> {
                     val arguments = call.arguments as? Map<*, *>
-                    val bytes = arguments?.get("bytes") as? ByteArray
+                    val bytes = byteArrayFrom(arguments?.get("bytes"))
 
                     if (bytes == null) {
                         result.error("invalid_arguments", "No file data was provided.", null)
                     } else {
                         saveBinaryFile(
-                            fileName = arguments["fileName"] as? String ?: "summary.pdf",
+                            fileName = arguments?.get("fileName") as? String ?: "summary.pdf",
                             bytes = bytes,
-                            mimeType = arguments["mimeType"] as? String ?: "application/octet-stream",
+                            mimeType = arguments?.get("mimeType") as? String ?: "application/octet-stream",
                             result = result,
                         )
                     }
                 }
                 "ocrScannedPdf" -> {
                     val arguments = call.arguments as? Map<*, *>
-                    val bytes = arguments?.get("bytes") as? ByteArray
+                    val bytes = byteArrayFrom(arguments?.get("bytes"))
 
                     if (bytes == null) {
                         result.error("invalid_arguments", "Khong co du lieu PDF de OCR.", null)
@@ -76,7 +76,7 @@ class MainActivity : FlutterActivity() {
                 }
                 "ocrImage" -> {
                     val arguments = call.arguments as? Map<*, *>
-                    val bytes = arguments?.get("bytes") as? ByteArray
+                    val bytes = byteArrayFrom(arguments?.get("bytes"))
 
                     if (bytes == null) {
                         result.error("invalid_arguments", "Khong co du lieu anh de OCR.", null)
@@ -166,6 +166,7 @@ class MainActivity : FlutterActivity() {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = mimeType
             putExtra(Intent.EXTRA_TITLE, ensureFileName(fileName, extensionForMimeType(mimeType)))
+            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
         }
 
         startActivityForResult(
@@ -311,6 +312,23 @@ class MainActivity : FlutterActivity() {
             "text/plain" -> "txt"
             else -> "bin"
         }
+    }
+
+    private fun byteArrayFrom(value: Any?): ByteArray? {
+        if (value is ByteArray) {
+            return value
+        }
+
+        if (value is List<*>) {
+            val bytes = ByteArray(value.size)
+            for (index in value.indices) {
+                val number = value[index] as? Number ?: return null
+                bytes[index] = number.toInt().toByte()
+            }
+            return bytes
+        }
+
+        return null
     }
 
     private fun ocrScannedPdf(bytes: ByteArray, result: MethodChannel.Result) {
