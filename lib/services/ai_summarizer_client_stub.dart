@@ -36,6 +36,7 @@ class AiSummarizerClient {
     required String text,
     required double targetRatio,
     required String language,
+    required String quality,
   }) {
     throw const AiSummarizerException(
       'AI backend is only available on Android and iOS builds.',
@@ -48,6 +49,7 @@ class AiSummarizerClient {
     required String? fallbackText,
     required double targetRatio,
     required String language,
+    required String quality,
     required bool enableOcr,
   }) {
     throw const AiSummarizerException(

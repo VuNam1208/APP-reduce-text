@@ -3,6 +3,7 @@ import logging
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.config import get_settings
 from app.schemas import (
@@ -10,6 +11,7 @@ from app.schemas import (
     SummarizeRequest,
     SummarizeResponse,
     SummaryLanguage,
+    SummaryQuality,
 )
 from app.services.document_reader import (
     DocumentProcessingError,
@@ -34,6 +36,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+if settings.trust_proxy_headers:
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 summarizer = AISummarizer(settings)
 
@@ -71,6 +76,7 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
 async def summarize_file(
     targetRatio: float = Form(default=0.1, ge=0.0, le=1.0),
     language: SummaryLanguage = Form(default=SummaryLanguage.auto),
+    quality: SummaryQuality = Form(default=SummaryQuality.fast),
     enableOcr: bool = Form(default=True),
     fallbackText: str = Form(default=""),
     file: UploadFile | None = File(default=None),
@@ -120,6 +126,7 @@ async def summarize_file(
                 text=text,
                 targetRatio=targetRatio,
                 language=language,
+                quality=quality,
             )
         )
         response.fileName = document.name

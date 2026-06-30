@@ -19,9 +19,18 @@ class Settings(BaseSettings):
         alias="GEMINI_MIN_REQUEST_INTERVAL_SECONDS",
     )
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
-    gemini_model: str = Field(default="gemini-3.1-flash-lite", alias="GEMINI_MODEL")
+    gemini_model: str = Field(
+        default="gemini-2.5-flash-lite",
+        alias="GEMINI_MODEL",
+    )
+    gemini_model_high: str = Field(
+        default="gemini-2.5-pro",
+        alias="GEMINI_MODEL_HIGH",
+    )
     app_env: str = Field(default="development", alias="APP_ENV")
     allowed_origins: str = Field(default="*", alias="ALLOWED_ORIGINS")
+    trust_proxy_headers: bool = Field(default=False, alias="TRUST_PROXY_HEADERS")
+    web_concurrency: int = Field(default=2, alias="WEB_CONCURRENCY")
     max_file_bytes: int = Field(default=25 * 1024 * 1024, alias="MAX_FILE_BYTES")
     max_text_chars: int = Field(default=220_000, alias="MAX_TEXT_CHARS")
     chunk_chars: int = Field(default=12_000, alias="CHUNK_CHARS")

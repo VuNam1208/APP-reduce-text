@@ -28,6 +28,16 @@ enum ExportPreference {
   final String label;
 }
 
+enum SummaryQuality {
+  fast('fast', 'Nhanh/Tiết kiệm'),
+  high('high', 'Chất lượng cao');
+
+  const SummaryQuality(this.apiValue, this.label);
+
+  final String apiValue;
+  final String label;
+}
+
 class SummarizerPage extends StatefulWidget {
   const SummarizerPage({super.key});
 
@@ -45,6 +55,7 @@ class _SummarizerPageState extends State<SummarizerPage> {
   String? _documentName;
   double _targetRatio = 0.1;
   SummaryLanguage _summaryLanguage = SummaryLanguage.auto;
+  SummaryQuality _summaryQuality = SummaryQuality.fast;
   ExportPreference _exportPreference = ExportPreference.both;
   bool _isPickingFile = false;
   bool _isSavingFile = false;
@@ -119,6 +130,7 @@ class _SummarizerPageState extends State<SummarizerPage> {
         fallbackText: null,
         targetRatio: _targetRatio,
         language: _summaryLanguage.name,
+        quality: _summaryQuality.apiValue,
         enableOcr: _isOcrEnabled,
       );
 
@@ -181,6 +193,7 @@ class _SummarizerPageState extends State<SummarizerPage> {
         text: input,
         targetRatio: _targetRatio,
         language: _summaryLanguage.name,
+        quality: _summaryQuality.apiValue,
       );
 
       if (!mounted) {
@@ -272,6 +285,13 @@ class _SummarizerPageState extends State<SummarizerPage> {
     });
   }
 
+  void _setSummaryQuality(SummaryQuality value) {
+    setState(() {
+      _summaryQuality = value;
+      _summaryResult = null;
+    });
+  }
+
   void _setOcrEnabled(bool value) {
     setState(() {
       _isOcrEnabled = value;
@@ -320,11 +340,15 @@ class _SummarizerPageState extends State<SummarizerPage> {
                 child: SingleChildScrollView(
                   child: _SettingsBar(
                     language: _summaryLanguage,
+                    quality: _summaryQuality,
                     targetRatio: _targetRatio,
                     isOcrEnabled: _isOcrEnabled,
                     exportPreference: _exportPreference,
                     onLanguageChanged: (value) {
                       updateSheet(() => _setSummaryLanguage(value));
+                    },
+                    onQualityChanged: (value) {
+                      updateSheet(() => _setSummaryQuality(value));
                     },
                     onTargetRatioChanged: (value) {
                       updateSheet(() => _setSummaryLength(value));
@@ -1010,10 +1034,12 @@ class _SourcePlaceholder extends StatelessWidget {
 class _SettingsBar extends StatelessWidget {
   const _SettingsBar({
     required this.language,
+    required this.quality,
     required this.targetRatio,
     required this.isOcrEnabled,
     required this.exportPreference,
     required this.onLanguageChanged,
+    required this.onQualityChanged,
     required this.onTargetRatioChanged,
     required this.onOcrChanged,
     required this.onExportPreferenceChanged,
@@ -1021,10 +1047,12 @@ class _SettingsBar extends StatelessWidget {
   });
 
   final SummaryLanguage language;
+  final SummaryQuality quality;
   final double targetRatio;
   final bool isOcrEnabled;
   final ExportPreference exportPreference;
   final ValueChanged<SummaryLanguage> onLanguageChanged;
+  final ValueChanged<SummaryQuality> onQualityChanged;
   final ValueChanged<double> onTargetRatioChanged;
   final ValueChanged<bool> onOcrChanged;
   final ValueChanged<ExportPreference> onExportPreferenceChanged;
@@ -1078,6 +1106,28 @@ class _SettingsBar extends StatelessWidget {
                   }
                 },
               ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          _SettingsItem(
+            icon: Icons.auto_awesome_outlined,
+            label: 'AI quality',
+            value: quality.label,
+            child: SegmentedButton<SummaryQuality>(
+              key: const Key('qualitySegmentedButton'),
+              showSelectedIcon: false,
+              segments: SummaryQuality.values
+                  .map(
+                    (value) => ButtonSegment<SummaryQuality>(
+                      value: value,
+                      label: Text(value.label),
+                    ),
+                  )
+                  .toList(),
+              selected: {quality},
+              onSelectionChanged: (selection) {
+                onQualityChanged(selection.first);
+              },
             ),
           ),
           const SizedBox(height: 8),

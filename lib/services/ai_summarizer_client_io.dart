@@ -43,18 +43,21 @@ class AiSummarizerClient {
     required String text,
     required double targetRatio,
     required String language,
+    required String quality,
   }) async {
     final endpoint = _endpoint('/api/summarize');
     final client = HttpClient()..connectionTimeout = _backendConnectionTimeout;
 
     try {
       final request = await client.postUrl(endpoint);
+      _applyRequestHeaders(request);
       request.headers.contentType = ContentType.json;
       request.write(
         jsonEncode({
           'text': text,
           'targetRatio': targetRatio,
           'language': language,
+          'quality': quality,
         }),
       );
 
@@ -77,6 +80,7 @@ class AiSummarizerClient {
     required String? fallbackText,
     required double targetRatio,
     required String language,
+    required String quality,
     required bool enableOcr,
   }) async {
     final endpoint = _endpoint('/api/summarize-file');
@@ -85,6 +89,7 @@ class AiSummarizerClient {
 
     try {
       final request = await client.postUrl(endpoint);
+      _applyRequestHeaders(request);
       request.headers.set(
         HttpHeaders.contentTypeHeader,
         'multipart/form-data; boundary=$boundary',
@@ -92,6 +97,7 @@ class AiSummarizerClient {
 
       _addMultipartField(request, boundary, 'targetRatio', '$targetRatio');
       _addMultipartField(request, boundary, 'language', language);
+      _addMultipartField(request, boundary, 'quality', quality);
       _addMultipartField(request, boundary, 'enableOcr', '$enableOcr');
 
       final fallback = fallbackText?.trim();
@@ -131,6 +137,17 @@ class AiSummarizerClient {
 
     final normalized = baseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
     return Uri.parse('$normalized$path');
+  }
+
+  bool get _usesNgrokTunnel {
+    final host = Uri.tryParse(baseUrl.trim())?.host.toLowerCase() ?? '';
+    return host.contains('ngrok');
+  }
+
+  void _applyRequestHeaders(HttpClientRequest request) {
+    if (_usesNgrokTunnel) {
+      request.headers.set('ngrok-skip-browser-warning', 'true');
+    }
   }
 
   Future<AiSummaryResponse> _readSummaryResponse(

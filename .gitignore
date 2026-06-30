@@ -41,6 +41,8 @@ backend/.venv/
 backend/__pycache__/
 backend/.pytest_cache/
 backend/.ruff_cache/
+backend/nginx/certs/*
+!backend/nginx/certs/.gitkeep
 
 # Symbolication related
 app.*.symbols

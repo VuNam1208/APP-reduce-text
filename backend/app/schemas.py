@@ -9,10 +9,16 @@ class SummaryLanguage(str, Enum):
     vietnamese = "vietnamese"
 
 
+class SummaryQuality(str, Enum):
+    fast = "fast"
+    high = "high"
+
+
 class SummarizeRequest(BaseModel):
     text: str = Field(min_length=1)
     targetRatio: float = Field(default=0.1, ge=0.0, le=1.0)
     language: SummaryLanguage = SummaryLanguage.auto
+    quality: SummaryQuality = SummaryQuality.fast
 
 
 class SummarizeResponse(BaseModel):

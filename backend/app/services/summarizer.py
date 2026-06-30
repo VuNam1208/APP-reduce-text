@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from openai import AsyncOpenAI, APIError, APITimeoutError, RateLimitError
 
 from app.config import Settings
-from app.schemas import SummarizeRequest, SummarizeResponse, SummaryLanguage
+from app.schemas import SummarizeRequest, SummarizeResponse, SummaryLanguage, SummaryQuality
 
 MIN_FINAL_TARGET_COVERAGE = 0.98
 MAX_LENGTH_ADJUSTMENT_ATTEMPTS = 3
@@ -53,12 +53,13 @@ class AISummarizer:
         chunk_target_ratio = chunk_note_ratio(request.targetRatio)
 
         logger.info(
-            "Summarizing document: original_words=%s target_ratio=%.2f target_words=%s chunks=%s sectioned=%s",
+            "Summarizing document: original_words=%s target_ratio=%.2f target_words=%s chunks=%s sectioned=%s quality=%s",
             original_word_count,
             request.targetRatio,
             final_target_words,
             len(chunks),
             use_sectioned_output,
+            request.quality.value,
         )
 
         async def summarize_chunk(chunk: str) -> str:
@@ -90,6 +91,7 @@ class AISummarizer:
                 target_words=call_target_words,
                 original_word_count=call_original_word_count,
                 language=request.language,
+                quality=request.quality,
                 mode=call_mode,
             )
             if use_sectioned_output:
@@ -101,6 +103,7 @@ class AISummarizer:
                     target_words=call_target_words,
                     original_word_count=call_original_word_count,
                     language=request.language,
+                    quality=request.quality,
                 )
             return section_summary
 
@@ -120,6 +123,7 @@ class AISummarizer:
                 target_words=final_target_words,
                 original_word_count=original_word_count,
                 language=request.language,
+                quality=request.quality,
                 mode="final",
             )
 
@@ -132,6 +136,7 @@ class AISummarizer:
                 target_words=final_target_words,
                 original_word_count=original_word_count,
                 language=request.language,
+                quality=request.quality,
             )
 
         summary_word_count = count_words(summary)
@@ -146,7 +151,7 @@ class AISummarizer:
         return SummarizeResponse(
             summary=summary,
             chunks=len(chunks),
-            model=self._active_model_name(provider),
+            model=self._active_model_name(provider, request.quality),
             originalWordCount=original_word_count,
             summaryWordCount=summary_word_count,
         )
@@ -160,6 +165,7 @@ class AISummarizer:
         target_words: int,
         original_word_count: int,
         language: SummaryLanguage,
+        quality: SummaryQuality,
         mode: str,
     ) -> str:
         if provider == "openai":
@@ -178,6 +184,7 @@ class AISummarizer:
             target_words=target_words,
             original_word_count=original_word_count,
             language=language,
+            quality=quality,
             mode=mode,
         )
 
@@ -242,6 +249,7 @@ class AISummarizer:
         target_words: int,
         original_word_count: int,
         language: SummaryLanguage,
+        quality: SummaryQuality,
         mode: str,
     ) -> str:
         if not self._settings.gemini_api_key:
@@ -257,6 +265,7 @@ class AISummarizer:
                     target_words=target_words,
                     original_word_count=original_word_count,
                     language=language,
+                    quality=quality,
                     mode=mode,
                 )
         except SummarizerError:
@@ -286,6 +295,7 @@ class AISummarizer:
         target_words: int,
         original_word_count: int,
         language: SummaryLanguage,
+        quality: SummaryQuality,
         mode: str,
     ) -> str:
         try:
@@ -297,10 +307,11 @@ class AISummarizer:
                 500,
             ) from error
 
+        model = self._resolve_gemini_model(quality)
         client = genai.Client(api_key=self._settings.gemini_api_key)
         try:
             response = client.models.generate_content(
-                model=self._settings.gemini_model,
+                model=model,
                 contents=build_user_prompt(
                     text=text,
                     target_ratio=target_ratio,
@@ -354,11 +365,17 @@ class AISummarizer:
 
         return 0
 
-    def _active_model_name(self, provider: str) -> str:
+    def _resolve_gemini_model(self, quality: SummaryQuality) -> str:
+        if quality == SummaryQuality.high:
+            return self._settings.gemini_model_high
+
+        return self._settings.gemini_model
+
+    def _active_model_name(self, provider: str, quality: SummaryQuality) -> str:
         if provider == "openai":
             return f"openai:{self._settings.openai_model}"
 
-        return f"gemini:{self._settings.gemini_model}"
+        return f"gemini:{self._resolve_gemini_model(quality)}"
 
     async def _expand_summary_if_too_short(
         self,
@@ -370,6 +387,7 @@ class AISummarizer:
         target_words: int,
         original_word_count: int,
         language: SummaryLanguage,
+        quality: SummaryQuality,
     ) -> str:
         if not should_expand_summary(summary, target_words):
             return summary
@@ -388,6 +406,7 @@ class AISummarizer:
                 target_words=target_words,
                 original_word_count=original_word_count,
                 language=language,
+                quality=quality,
                 mode="expand",
             )
             candidate_word_count = count_words(candidate)
