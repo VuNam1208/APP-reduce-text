@@ -54,6 +54,7 @@ AI_MAX_OUTPUT_TOKENS=8192
 OPENAI_MIN_REQUEST_INTERVAL_SECONDS=0
 OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-5.1-mini
+OPENAI_MODEL_HIGH=gpt-4o
 GEMINI_MIN_REQUEST_INTERVAL_SECONDS=4.5
 GEMINI_API_KEY=...
 GEMINI_MODEL=gemini-2.5-flash-lite
@@ -104,7 +105,7 @@ Content-Type: application/json
 }
 ```
 
-`targetRatio` can be `0.0` to `1.0`, where `0.2` means about 20% of the original length. `language` can be `auto`, `english`, or `vietnamese`. `quality` can be `fast` (cheaper Gemini model) or `high` (Gemini Pro).
+`targetRatio` can be `0.0` to `1.0`, where `0.2` means about 20% of the original length. `language` can be `auto`, `english`, or `vietnamese`. `quality` can be `fast` (economical model) or `high` (premium model). With `AI_PROVIDER=gemini`, fast uses `GEMINI_MODEL` and high uses `GEMINI_MODEL_HIGH`. With `AI_PROVIDER=openai`, fast uses `OPENAI_MODEL` and high uses `OPENAI_MODEL_HIGH`.
 
 Response:
 

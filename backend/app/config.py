@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     )
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-5.1-mini", alias="OPENAI_MODEL")
+    openai_model_high: str = Field(default="gpt-4o", alias="OPENAI_MODEL_HIGH")
     gemini_min_request_interval_seconds: float = Field(
         default=4.5,
         alias="GEMINI_MIN_REQUEST_INTERVAL_SECONDS",

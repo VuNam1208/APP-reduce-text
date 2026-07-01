@@ -175,6 +175,7 @@ class AISummarizer:
                 target_words=target_words,
                 original_word_count=original_word_count,
                 language=language,
+                quality=quality,
                 mode=mode,
             )
 
@@ -196,16 +197,18 @@ class AISummarizer:
         target_words: int,
         original_word_count: int,
         language: SummaryLanguage,
+        quality: SummaryQuality,
         mode: str,
     ) -> str:
         if not self._settings.openai_api_key:
             raise SummarizerError("Missing OPENAI_API_KEY in backend/.env.", 500)
 
+        model = self._resolve_openai_model(quality)
         try:
             async with self._ai_semaphore:
                 await self._wait_for_provider_rate_limit("openai")
                 response = await self._openai_client.responses.create(
-                    model=self._settings.openai_model,
+                    model=model,
                     input=[
                         {
                             "role": "system",
@@ -365,6 +368,12 @@ class AISummarizer:
 
         return 0
 
+    def _resolve_openai_model(self, quality: SummaryQuality) -> str:
+        if quality == SummaryQuality.high:
+            return self._settings.openai_model_high
+
+        return self._settings.openai_model
+
     def _resolve_gemini_model(self, quality: SummaryQuality) -> str:
         if quality == SummaryQuality.high:
             return self._settings.gemini_model_high
@@ -373,7 +382,7 @@ class AISummarizer:
 
     def _active_model_name(self, provider: str, quality: SummaryQuality) -> str:
         if provider == "openai":
-            return f"openai:{self._settings.openai_model}"
+            return f"openai:{self._resolve_openai_model(quality)}"
 
         return f"gemini:{self._resolve_gemini_model(quality)}"
 
