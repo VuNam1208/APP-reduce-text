@@ -29,8 +29,8 @@ enum ExportPreference {
 }
 
 enum SummaryQuality {
-  fast('fast', 'Nhanh/Tiết kiệm'),
-  high('high', 'Chất lượng cao');
+  fast('fast', 'LOW'),
+  high('high', 'HIGH');
 
   const SummaryQuality(this.apiValue, this.label);
 
